@@ -240,17 +240,21 @@ function onKeyPress(event) {
 }
 window.addEventListener("keypress", onKeyPress, true);
 
-function render() {
-  if (stopAnimation) {
-    if (stopAnimationPending) {
-      logDebugInfo();
-      stopAnimationPending = false;
-    }
-    requestAnimationFrame(render);
-    return;
-  }
-  frameCount++;
+function updateGameState() {
 
+  checkHandPosition();
+  updateBallPosition();
+
+  // Move to next level, or restart the current one.
+  if (gameState.doneCount === gameParams.ballCount || gameState.gameOver) {
+    createLevel( gameState.gameOver ? gameState.level : gameState.level+1 );
+  }
+
+}  
+
+function checkHandPosition() {
+
+  // Do any hands collide with any balls?
   for (var i=0; i < gameState.handObjects.length; i++) {
     var hand = gameState.handObjects[i];
     var palmPosition = new THREE.Vector3().fromArray(hand.palmPosition);
@@ -278,7 +282,10 @@ function render() {
         }
       }
     }
-  }
+  }  
+}
+
+function updateBallPosition() {
 
   for (var i=0; i < gameState.ballObjects.length; i++) {
     var ball = gameState.ballObjects[i];
@@ -316,10 +323,21 @@ function render() {
     var ballSpeedAdd = gameParams.ballSpeedStart * percentInc;
     ball.translateZ(gameParams.ballSpeedStart + ballSpeedAdd);
   }
+}
 
-  if (gameState.doneCount === gameParams.ballCount || gameState.gameOver) {
-    createLevel( gameState.gameOver ? gameState.level : gameState.level+1 );
+
+function render() {
+  if (stopAnimation) {
+    if (stopAnimationPending) {
+      logDebugInfo();
+      stopAnimationPending = false;
+    }
+    requestAnimationFrame(render);
+    return;
   }
+  frameCount++;
+
+  updateGameState();
 
   var cameraPosition = camera.position.clone();
   var lastHeadPosition = gameState.headPosition;
