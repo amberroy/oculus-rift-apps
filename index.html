@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+  <!-- Copyright (c) Amber Roy 2014  -->
+  <head>
+    <title>Rift Dojo - Leap Motion 3D Game Jam</title>
+    <meta charset="utf-8">
+    <style>
+      body {
+        font-family: Monospace;
+        margin: 0px;
+        padding: 0;
+      }
+
+    </style>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js"></script>
+    <script src="http://mrdoob.github.com/three.js/examples/fonts/helvetiker_regular.typeface.js"></script>
+    <!--
+    <script src="js/three.min.js"></script>
+    <script src="js/helvetiker_regular.typeface.js"></script>
+    -->
+    <!-- VR scripts from the THREE.js repo, VREffect modified slightly. -->
+    <script src="js/VRControls.js"></script>
+    <script src="js/VREffect.js"></script>
+
+    <script src="//js.leapmotion.com/leap-0.6.3.min.js"></script>
+    <script src="//js.leapmotion.com/leap-plugins-0.1.9.min.js"></script>
+    <!--
+    <script src="js/leap-0.6.3.min.js"></script> 
+    <script src="js/leap-plugins-0.1.9.js"></script> 
+  -->
+</head>
+
+<body>
+  <canvas id="scene"></canvas>
+</body>
+
+<script>
+
+var DEBUG = true;
+var frameCount = 0;
+var stopAnimation = false;
+var stopAnimationPending = false;
+var ZERO_VECTOR3 = new THREE.Vector3(0,0,0);
+
+var vrControls, vrEffect;
+var scene, camera, renderer;
+
+var gameParams = Object.freeze({
+  //ballRadius: 0.03,
+  ballRadius: 0.06,
+  ballStartX: 0.0,
+  ballStartY: 0.03,
+  ballStartZ: -1.5,
+  ballRangeX: 0.3,
+  ballRangeY: 0.2,
+  //ballIntervalZ: 0.5,
+  ballIntervalZ: 0.25,
+  ballSpeedStart: 0.005,
+  ballSpeedInc: 0.1,
+  hitTolerance: 0.0,
+  grabStrength: 0.5,
+  colorToHit: 0xcc0000,
+  colorToGrab: 0x0000cc,
+  ballCount: 5,
+});
+
+var textParams = Object.freeze({
+  color: 0xffffff,
+  startX: -0.05,
+  startY: 0.03,
+  startZ: -0.5,
+  font: "helvetiker",
+  size: 0.05,
+  height: 0.001,
+});
+
+var gameState = {
+  level: 0,
+  ballSpeed: 0,
+  ballObjects: [],
+  handObjects: [],
+  textObject: null,
+  doneCount: 0,
+  gameOver: false,
+  ballGroup: null,
+  headPosition: new THREE.Vector3(0,0,0),
+};
+
+
+function initScene() {
+
+  scene = new THREE.Scene();
+
+  camera = new THREE.PerspectiveCamera(
+    75,     // fov
+    window.innerWidth / window.innerHeight,
+    0.1,    // near
+    10000   // far 
+  );
+
+  canvas = document.getElementById('scene');
+  canvas.style.position = 'absolute';
+  canvas.style.top = 0;
+  canvas.style.left = 0;
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    canvas: canvas,
+  });
+  renderer.setClearColor(0x808080); // gray
+
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  onResize = function() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  };
+  window.addEventListener('resize', onResize, false);
+
+
+  var light = new THREE.PointLight(0xffffff, 1, 1000);
+  scene.add(light);
+
+  createLevel(1);
+}
+
+function createLevel(level) {
+  scene.remove(gameState.ballGroup);
+  scene.remove(gameState.text);
+
+  gameState.level = level;
+  gameState.doneCount = 0;  
+  gameState.gameOver = false;
+  gameState.ballObjects = [];
+  gameState.ballGroup = new THREE.Object3D();
+  gameState.ballSpeed = gameState.ballSpeed + (gameParams.ballSpeedStart *
+                        (gameParams.ballSpeedInc * (gameState.level-1)));
+
+  var toGrabIndex = Math.floor(Math.random() * gameParams.ballCount);
+  for (var i=0; i < gameParams.ballCount; i++) {
+    if (toGrabIndex === i) {
+      createBallObject(gameParams.colorToGrab, i);  
+    } else {
+      createBallObject(gameParams.colorToHit, i);  
+    }
+  }
+  scene.add(gameState.ballGroup);
+
+  createTextObject("Level "+gameState.level); 
+  if (DEBUG) console.log("Started Level "+gameState.level);
+}
+
+function createBallObject(color, index) {
+
+  var ballGeo = new THREE.SphereGeometry(gameParams.ballRadius, 16, 16);
+  var ballMat = new THREE.MeshPhongMaterial({color: color});
+  var ball = new THREE.Mesh(ballGeo, ballMat);
+  randomBallPosition(ball, index);
+  gameState.ballObjects.push(ball);
+  gameState.ballGroup.add(ball);
+  // colors: 0x00cc00 (lime), 0x0000cc (blue), 0xcc0000 (red), 0xcccc00 (yellow)
+}
+
+function randomBallPosition(ball, index) {
+  var randX = Math.random() * (gameParams.ballRangeX*2) - gameParams.ballRangeX;
+  var randY = Math.random() * (gameParams.ballRangeY*2) - gameParams.ballRangeY;
+
+  var ballX = gameParams.ballStartX + randX;
+  var ballY = gameParams.ballStartY + randY;
+  var ballZ = gameParams.ballStartZ + (gameParams.ballIntervalZ * index * -1);
+  ball.position.fromArray([ballX, ballY, ballZ]);
+
+}
+
+function createTextObject(text) {
+  var params = { 
+    font: textParams.font,
+    size: textParams.size,
+    height: textParams.height
+  };
+  var textGeo = new THREE.TextGeometry(text, params);
+  var textMat = new THREE.MeshBasicMaterial({color: textParams.color });
+  var text = new THREE.Mesh(textGeo, textMat);
+  text.position.fromArray( [textParams.startX, textParams.startY, textParams.startZ] );
+  gameState.textObject = text;
+  scene.add(text);
+
+  setTimeout( function() {
+    scene.remove(gameState.textObject);
+  }, 2000);
+}
+
+function initVR() {
+
+  vrControls = new THREE.VRControls(camera);
+  vrEffect = new THREE.VREffect(renderer);
+
+  var options = {}; // none for now
+  Leap.loop(options, onLeapFrame);
+  Leap.loopController.use('transform', { vr: true, effectiveParent: camera });
+  Leap.loopController.use('boneHand', { scene: scene, arm: true });
+  // Leap tracks hands up to about 50 cm (20 inches) in front of sensor.
+
+}
+
+function onLeapFrame(frame) {
+  gameState.handObjects = frame.hands;
+
+}
+
+function onKeyPress(event) {
+
+  switch(event.which) {
+    case 'z'.charCodeAt(0):  
+      vrControls.zeroSensor();
+      break;
+    case 'f'.charCodeAt(0):  
+      vrEffect.setFullScreen(true);
+      break;
+    case 13:   // "Enter" key
+      vrEffect.setFullScreen(true);
+      break;
+  }
+  if (DEBUG) {
+    console.log("keypress", event.which);
+    if (event.which === ' '.charCodeAt(0)) {
+      // Pause/play animaiton on space bar.
+      if (stopAnimation) {
+        console.log("Animation PLAYING");
+        stopAnimation = false;
+      } else {
+        stopAnimation = true;
+        stopAnimationPending = true;
+        console.log("Animation PAUSED");
+      }
+    }
+  }
+}
+window.addEventListener("keypress", onKeyPress, true);
+
+function render() {
+  if (stopAnimation) {
+    if (stopAnimationPending) {
+      logDebugInfo();
+      stopAnimationPending = false;
+    }
+    requestAnimationFrame(render);
+    return;
+  }
+  frameCount++;
+
+  for (var i=0; i < gameState.handObjects.length; i++) {
+    var hand = gameState.handObjects[i];
+    var palmPosition = new THREE.Vector3().fromArray(hand.palmPosition);
+
+    for (var j=0; j < gameState.ballObjects.length; j++) {
+      var ball = gameState.ballObjects[j];
+      var ballRadius = ball.geometry.boundingSphere.radius;
+      if (!ball.visible) {
+        continue;
+      }
+      var distance = palmPosition.distanceTo(ball.position);
+      if (distance < ballRadius + gameParams.hitTolerance) {
+        if (hand.grabStrength > gameParams.grabStrength) {
+          if (DEBUG) console.log("Hand["+i+"] GRABBED Ball["+j+"] ", ball.position);
+          hand.data('ball', ball);
+          console.log("ball object", ball);
+        } else {
+          if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
+          // After letting go of a grabbed ball, it gets hit and disappears.
+          ball.visible = false;
+          gameState.doneCount++;
+          if (hand.data('ball')) {
+            hand.data('ball', null);
+          }
+        }
+      }
+    }
+  }
+
+  for (var i=0; i < gameState.ballObjects.length; i++) {
+    var ball = gameState.ballObjects[i];
+    if (!ball.visible) {
+      continue;
+    }
+    var isHandBall = false;
+
+    for (var j=0; j < gameState.handObjects.length; j++) {
+      var hand = gameState.handObjects[j];
+      if (hand.data('ball')) {
+        var handBall = hand.data('ball');
+        if (handBall == ball) {
+          if (DEBUG) console.log("Hand["+j+"] is holding ball["+i+"]");
+          isHandBall = true;
+          ball.position.fromArray(hand.palmPosition);
+        }
+      }
+    }
+    if (isHandBall) {
+      continue;
+    }
+    if (ball.position.z > 0 && !ball.done)  {
+      // Ball just went out of play.
+      if (DEBUG) console.log("Ball["+i+"] went out of play with visible="+ball.visible);
+      if (ball.visible) {
+        gameState.gameOver = true;  
+      } else {
+        gameState.doneCount++;
+        ball.visible = false;
+      }
+      ball.done = true;
+    }
+    var percentInc = gameParams.ballSpeedInc * (gameState.level-1);
+    var ballSpeedAdd = gameParams.ballSpeedStart * percentInc;
+    ball.translateZ(gameParams.ballSpeedStart + ballSpeedAdd);
+  }
+
+  if (gameState.doneCount === gameParams.ballCount || gameState.gameOver) {
+    createLevel( gameState.gameOver ? gameState.level : gameState.level+1 );
+  }
+
+  var cameraPosition = camera.position.clone();
+  var lastHeadPosition = gameState.headPosition;
+  vrControls.update();  // Resets camera to absolute head position from HMD.
+  gameState.headPosition = camera.position.clone();
+  if (gameState.headPosition.equals(cameraPosition)) {
+    // On Firefox, if no HMD position data, then camera is not reset. Force to zero.
+    gameState.headPosition = ZERO_VECTOR3;
+  }
+  // Add any head movement (via positional tracking) to the camera position.
+  camera.position.set(cameraPosition.x + (gameState.headPosition.x - lastHeadPosition.x),
+                      cameraPosition.y + (gameState.headPosition.y - lastHeadPosition.y),
+                      cameraPosition.z + (gameState.headPosition.z - lastHeadPosition.z));
+  vrEffect.render(scene, camera);  
+
+  requestAnimationFrame(render);
+}
+
+function logDebugInfo() {
+  for (var i=0; i < gameState.ballObjects.length; i++) {
+    console.log("ball[" + i + "] position: ", gameState.ballObjects[i].position);
+  }
+  for (var i=0; i < gameState.handObjects.length; i++) {
+    console.log("hand[" + i + "] position: ", gameState.handObjects[i].palmPosition);
+  }
+}
+
+function main() {
+
+  initScene()
+  initVR();
+  render();
+}
+window.addEventListener("load", main);
+
+
+</script>
+</html>
