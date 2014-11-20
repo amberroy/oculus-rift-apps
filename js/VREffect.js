@@ -1,6 +1,6 @@
 // this file downloaded on 2014-11-14
 // https://github.com/mrdoob/three.js/blob/master/examples/js/effects/VREffect.js
-// Modified to disable Timewarp and fix typo in webkitFullscreenElement see XXX lines.
+// Modified to fix typo in webkitFullscreenElement see XXX lines.
 /**
  * @author dmarcos / https://github.com/dmarcos
  *
@@ -58,13 +58,6 @@ THREE.VREffect = function ( renderer, done ) {
 					break; // We keep the first we encounter
 				}
 			}
-			// XXX temp fix, timewarp rendering seems to be broken
-			/*
-			if (window.chrome) {								/// XXX
-				console.log("Disabling timewarp on Chromium");	/// XXX
-				vrHMD.setTimewarp(false);						/// XXX
-			}													/// XXX
-			*/
 			if ( done ) {
 				if ( !vrHMD ) {
 				 error = 'HMD not available';
