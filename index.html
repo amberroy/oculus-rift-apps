@@ -50,7 +50,6 @@ var gameParams = Object.freeze({
   ballRadius: 0.04,
   ballStartX: 0.0,
   ballStartY: 0.03,
-  //ballStartZ: -1.5,
   ballStartZ: -2.0,
   ballRangeX: 0.3,
   ballRangeY: 0.2,
@@ -58,6 +57,7 @@ var gameParams = Object.freeze({
   ballSpeedStart: 0.005,
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
+  grabStrength: 0.5,
   colorToHit: 0xcc0000,
   colorToGrab: 0x0000cc,
   ballCount: 5,
@@ -78,6 +78,7 @@ var gameState = {
   ballSpeed: 0,
   ballObjects: [],
   handObjects: [],
+  leapFrame: null,
   textObject: null,
   doneCount: 0,
   gameOver: false,
@@ -87,10 +88,12 @@ var gameState = {
 
 var ballState = {
   isInPlay: false,
+  isInHand: false,
   isFalling: false,
   isGrounded: false,
-  isOutOfPlay: false,
   wasHit: false,
+  wasGrab: false,
+  handId: null,
 };
 
 
@@ -215,8 +218,8 @@ function initVR() {
 }
 
 function onLeapFrame(frame) {
+  gameState.leapFrame = frame;
   gameState.handObjects = frame.hands;
-
 }
 
 function onKeyPress(event) {
@@ -278,13 +281,23 @@ function checkHandPosition() {
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + gameParams.hitTolerance) {
-        // Hit!
-        if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
-        ball.visible = false;
-        gameState.doneCount++;
-        ball.ballState.isInPlay = false;
-        ball.ballState.isFalling = true;
-        ball.ballState.wasHit = true;
+        if (hand.grabStrength > gameParams.grabStrength) {
+          // Grab!
+          if (DEBUG) console.log("Hand["+i+"] GRABBED Ball["+j+"] ", ball.position);
+          gameState.doneCount++;
+          ball.ballState.isInHand = true;
+          ball.ballState.isInPlay = false;
+          ball.ballState.wasGrab = true;
+          ball.ballState.handId = hand.id; 
+        } else {
+          // Hit!
+          if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
+          ball.visible = false;
+          gameState.doneCount++;
+          ball.ballState.isInPlay = false;
+          ball.ballState.isFalling = true;
+          ball.ballState.wasHit = true;
+        }
       }
     }
   }  
@@ -292,19 +305,28 @@ function checkHandPosition() {
 
 function updateBallPosition() {
 
-  // Update any balls being held.
-  for (var i=0; i < gameState.handObjects.length; i++) {
-    var hand = gameState.handObjects[i];
-    if (hand.data("ball")) {
-      var ball = hand.data("ball");
-      ball.position.fromArray(hand.palmPosition);
-    }
-  }
-
+  // Update position of all balls in play or in hands.
   for (var i=0; i < gameState.ballObjects.length; i++) {
     var ball = gameState.ballObjects[i];
-    if (ball.ballState.isOutOfPlay) {
-      continue;
+
+    if (ball.ballState.isInHand) {
+      var hand = gameState.leapFrame.hand(ball.ballState.handId);
+      if (!hand.valid) {
+        console.log("Hand "+i+" was holding ball, but longer in frame");
+        ball.ballState.isInHand = false;
+        ball.ballState.isFalling = true;
+        ball.handId = null;
+      } else {
+        if (hand.grabStrength > gameParams.grabStrength) {
+          ball.position.fromArray(hand.palmPosition);
+        } else {
+          if (DEBUG) console.log("Hand["+i+"] DROPPED Ball", ball.position);
+          ball.visible = false;
+          ball.ballState.isInHand = false;
+          ball.ballState.isFalling = true;
+          hand.data("ball", null);
+        }  
+      }
     }
 
     if (ball.ballState.isInPlay && ball.position.z > 0)  {
@@ -315,12 +337,16 @@ function updateBallPosition() {
       } else {
         gameState.gameOver = true;  
       }
-      ball.ballState.isOutOfPlay = true;
       ball.ballState.isInPlay = false;
     }
-    var percentInc = gameParams.ballSpeedInc * (gameState.level-1);
-    var ballSpeedAdd = gameParams.ballSpeedStart * percentInc;
-    ball.translateZ(gameParams.ballSpeedStart + ballSpeedAdd);
+
+    if (ball.ballState.isInPlay) {
+      // Move ball according to initial speed and current level.
+      var percentInc = gameParams.ballSpeedInc * (gameState.level-1);
+      var ballSpeedAdd = gameParams.ballSpeedStart * percentInc;
+      ball.translateZ(gameParams.ballSpeedStart + ballSpeedAdd);
+    }
+
   }
 }
 
