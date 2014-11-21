@@ -47,19 +47,17 @@ var vrControls, vrEffect;
 var scene, camera, renderer;
 
 var gameParams = Object.freeze({
-  //ballRadius: 0.03,
-  ballRadius: 0.06,
+  ballRadius: 0.04,
   ballStartX: 0.0,
   ballStartY: 0.03,
-  ballStartZ: -1.5,
+  //ballStartZ: -1.5,
+  ballStartZ: -2.0,
   ballRangeX: 0.3,
   ballRangeY: 0.2,
-  //ballIntervalZ: 0.5,
-  ballIntervalZ: 0.25,
+  ballIntervalZ: 0.5,
   ballSpeedStart: 0.005,
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
-  grabStrength: 0.5,
   colorToHit: 0xcc0000,
   colorToGrab: 0x0000cc,
   ballCount: 5,
@@ -85,6 +83,14 @@ var gameState = {
   gameOver: false,
   ballGroup: null,
   headPosition: new THREE.Vector3(0,0,0),
+};
+
+var ballState = {
+  isInPlay: false,
+  isFalling: false,
+  isGrounded: false,
+  isOutOfPlay: false,
+  wasHit: false,
 };
 
 
@@ -140,10 +146,11 @@ function createLevel(level) {
 
   var toGrabIndex = Math.floor(Math.random() * gameParams.ballCount);
   for (var i=0; i < gameParams.ballCount; i++) {
+    var ball;
     if (toGrabIndex === i) {
-      createBallObject(gameParams.colorToGrab, i);  
+      createBallObject(gameParams.colorToGrab, i);
     } else {
-      createBallObject(gameParams.colorToHit, i);  
+      createBallObject(gameParams.colorToHit, i);
     }
   }
   scene.add(gameState.ballGroup);
@@ -158,9 +165,12 @@ function createBallObject(color, index) {
   var ballMat = new THREE.MeshPhongMaterial({color: color});
   var ball = new THREE.Mesh(ballGeo, ballMat);
   randomBallPosition(ball, index);
+  ball.ballState = Object.create(ballState);
+  ball.ballState.isInPlay = true;
   gameState.ballObjects.push(ball);
   gameState.ballGroup.add(ball);
   // colors: 0x00cc00 (lime), 0x0000cc (blue), 0xcc0000 (red), 0xcccc00 (yellow)
+  return ball;
 }
 
 function randomBallPosition(ball, index) {
@@ -184,11 +194,10 @@ function createTextObject(text) {
   var textMat = new THREE.MeshBasicMaterial({color: textParams.color });
   var text = new THREE.Mesh(textGeo, textMat);
   text.position.fromArray( [textParams.startX, textParams.startY, textParams.startZ] );
-  gameState.textObject = text;
   scene.add(text);
 
   setTimeout( function() {
-    scene.remove(gameState.textObject);
+    scene.remove(text); 
   }, 2000);
 }
 
@@ -262,24 +271,20 @@ function checkHandPosition() {
     for (var j=0; j < gameState.ballObjects.length; j++) {
       var ball = gameState.ballObjects[j];
       var ballRadius = ball.geometry.boundingSphere.radius;
-      if (!ball.visible) {
+      if (!ball.ballState.isInPlay) {
         continue;
       }
+
+      // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + gameParams.hitTolerance) {
-        if (hand.grabStrength > gameParams.grabStrength) {
-          if (DEBUG) console.log("Hand["+i+"] GRABBED Ball["+j+"] ", ball.position);
-          hand.data('ball', ball);
-          console.log("ball object", ball);
-        } else {
-          if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
-          // After letting go of a grabbed ball, it gets hit and disappears.
-          ball.visible = false;
-          gameState.doneCount++;
-          if (hand.data('ball')) {
-            hand.data('ball', null);
-          }
-        }
+        // Hit!
+        if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
+        ball.visible = false;
+        gameState.doneCount++;
+        ball.ballState.isInPlay = false;
+        ball.ballState.isFalling = true;
+        ball.ballState.wasHit = true;
       }
     }
   }  
@@ -287,37 +292,31 @@ function checkHandPosition() {
 
 function updateBallPosition() {
 
+  // Update any balls being held.
+  for (var i=0; i < gameState.handObjects.length; i++) {
+    var hand = gameState.handObjects[i];
+    if (hand.data("ball")) {
+      var ball = hand.data("ball");
+      ball.position.fromArray(hand.palmPosition);
+    }
+  }
+
   for (var i=0; i < gameState.ballObjects.length; i++) {
     var ball = gameState.ballObjects[i];
-    if (!ball.visible) {
+    if (ball.ballState.isOutOfPlay) {
       continue;
     }
-    var isHandBall = false;
 
-    for (var j=0; j < gameState.handObjects.length; j++) {
-      var hand = gameState.handObjects[j];
-      if (hand.data('ball')) {
-        var handBall = hand.data('ball');
-        if (handBall == ball) {
-          if (DEBUG) console.log("Hand["+j+"] is holding ball["+i+"]");
-          isHandBall = true;
-          ball.position.fromArray(hand.palmPosition);
-        }
-      }
-    }
-    if (isHandBall) {
-      continue;
-    }
-    if (ball.position.z > 0 && !ball.done)  {
+    if (ball.ballState.isInPlay && ball.position.z > 0)  {
       // Ball just went out of play.
       if (DEBUG) console.log("Ball["+i+"] went out of play with visible="+ball.visible);
-      if (ball.visible) {
-        gameState.gameOver = true;  
-      } else {
+      if (ball.ballState.wasHit) {
         gameState.doneCount++;
-        ball.visible = false;
+      } else {
+        gameState.gameOver = true;  
       }
-      ball.done = true;
+      ball.ballState.isOutOfPlay = true;
+      ball.ballState.isInPlay = false;
     }
     var percentInc = gameParams.ballSpeedInc * (gameState.level-1);
     var ballSpeedAdd = gameParams.ballSpeedStart * percentInc;
@@ -358,10 +357,8 @@ function render() {
 
 function logDebugInfo() {
   for (var i=0; i < gameState.ballObjects.length; i++) {
-    console.log("ball[" + i + "] position: ", gameState.ballObjects[i].position);
-  }
-  for (var i=0; i < gameState.handObjects.length; i++) {
-    console.log("hand[" + i + "] position: ", gameState.handObjects[i].palmPosition);
+    var ball = gameState.ballObjects[i];
+    console.log("ball[" + i + "] state: ", ball.ballState);
   }
 }
 
