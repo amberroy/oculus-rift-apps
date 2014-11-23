@@ -53,15 +53,15 @@ var gameParams = Object.freeze({
   ballStartX: 0.0,
   ballStartY: 0.03,
   ballStartZ: -2.0,
-  ballRangeX: 0.3,
-  ballRangeY: 0.2,
-  ballIntervalZ: 0.5,
+  ballRangeX: 0.3,    // 0.3
+  ballRangeY: 0.2,    // 0.2
+  ballIntervalZ: 0.5, // 0.5
   ballSpeedStart: 0.005,
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
   grabStrength: 0.5,
-  colorToHit: 0xcc0000,
-  colorToGrab: 0x0000cc,
+  colorToPalm: 0xcc0000,
+  colorToPunch: 0x0000cc,
   ballCount: 5,
 });
 
@@ -91,10 +91,8 @@ var gameState = {
 var ballState = {
   isInPlay: false,
   isInHand: false,
-  isFalling: false,
-  isGrounded: false,
-  wasHit: false,
-  wasGrab: false,
+  wasPalm: false,
+  wasPunch: false,
   handId: null,
 };
 
@@ -149,13 +147,13 @@ function createLevel(level) {
   gameState.ballSpeed = gameState.ballSpeed + (gameParams.ballSpeedStart *
                         (gameParams.ballSpeedInc * (gameState.level-1)));
 
-  var toGrabIndex = Math.floor(Math.random() * gameParams.ballCount);
+  var toPunchIndex = Math.floor(Math.random() * gameParams.ballCount);
   for (var i=0; i < gameParams.ballCount; i++) {
     var ball;
-    if (toGrabIndex === i) {
-      createBallObject(gameParams.colorToGrab, i);
+    if (toPunchIndex === i) {
+      createBallObject(gameParams.colorToPunch, i);
     } else {
-      createBallObject(gameParams.colorToHit, i);
+      createBallObject(gameParams.colorToPalm, i);
     }
   }
   scene.add(gameState.ballGroup);
@@ -284,21 +282,19 @@ function checkHandPosition() {
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + gameParams.hitTolerance) {
         if (hand.grabStrength > gameParams.grabStrength) {
-          // Grab!
-          if (DEBUG) console.log("Hand["+i+"] GRABBED Ball["+j+"] ", ball.position);
+          // Punch!
+          if (DEBUG) console.log("Hand["+i+"] PUNCHED Ball["+j+"] ", ball.position);
           gameState.doneCount++;
-          ball.ballState.isInHand = true;
-          ball.ballState.isInPlay = false;
-          ball.ballState.wasGrab = true;
-          ball.ballState.handId = hand.id; 
-        } else {
-          // Hit!
-          if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
           ball.visible = false;
-          gameState.doneCount++;
           ball.ballState.isInPlay = false;
-          ball.ballState.isFalling = true;
-          ball.ballState.wasHit = true;
+          ball.ballState.wasPunch = true;
+        } else {
+          // Palm!
+          if (DEBUG) console.log("Hand["+i+"] PALMED Ball["+j+"] ", ball.position);
+          gameState.doneCount++;
+          ball.visible = false;
+          ball.ballState.isInPlay = false;
+          ball.ballState.wasPalm = true;
         }
       }
     }
@@ -315,8 +311,8 @@ function updateBallPosition() {
       var hand = gameState.leapFrame.hand(ball.ballState.handId);
       if (!hand.valid) {
         console.log("Hand "+i+" was holding ball, but longer in frame");
+        ball.visible = false;
         ball.ballState.isInHand = false;
-        ball.ballState.isFalling = true;
         ball.handId = null;
       } else {
         if (hand.grabStrength > gameParams.grabStrength) {
@@ -325,8 +321,7 @@ function updateBallPosition() {
           if (DEBUG) console.log("Hand["+i+"] DROPPED Ball", ball.position);
           ball.visible = false;
           ball.ballState.isInHand = false;
-          ball.ballState.isFalling = true;
-          hand.data("ball", null);
+          ball.handId = null;
         }  
       }
     }
@@ -334,7 +329,7 @@ function updateBallPosition() {
     if (ball.ballState.isInPlay && ball.position.z > 0)  {
       // Ball just went out of play.
       if (DEBUG) console.log("Ball["+i+"] went out of play with visible="+ball.visible);
-      if (ball.ballState.wasHit) {
+      if (ball.ballState.wasPalm) {
         gameState.doneCount++;
       } else {
         gameState.gameOver = true;  
