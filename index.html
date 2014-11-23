@@ -60,9 +60,11 @@ var GameParams = Object.freeze({
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
   grabStrength: 0.5,
-  colorToPalm: 0xcc0000,
-  colorToPunch: 0x0000cc,
+  colorToPalm: 0xcc0000,  // red
+  colorToPunch: 0x0000cc, // blue
+  colorTracker: 0x000000, // black
   ballCount: 5,
+  trackerRadius: 0.01,
 });
 
 var TextParams = Object.freeze({
@@ -85,6 +87,7 @@ var GameState = {
   doneCount: 0,
   gameOver: false,
   ballGroup: null,
+  trackerGroup: null,
   headPosition: new THREE.Vector3(0,0,0),
 };
 
@@ -204,6 +207,22 @@ function createTextObject(text) {
   }, 2000);
 }
 
+
+function newTrackerObject(position) {
+
+  if (!GameState.trackerGroup) {
+    GameState.trackerGroup = new THREE.Object3D(); 
+    scene.add(GameState.trackerGroup);
+  }
+
+  var trackerGeo = new THREE.SphereGeometry(GameParams.trackerRadius, 16, 16);
+  var trackerMat = new THREE.MeshPhongMaterial({color: GameParams.colorTracker});
+  var tracker = new THREE.Mesh(trackerGeo, trackerMat);
+  tracker.position.set(position.x, position.y, position.z);
+  GameState.trackerGroup.add(tracker); 
+  return tracker;
+}
+
 function initVR() {
 
   vrControls = new THREE.VRControls(camera);
@@ -213,6 +232,9 @@ function initVR() {
   Leap.loop(options, onLeapFrame);
   Leap.loopController.use('transform', { vr: true, effectiveParent: camera });
   Leap.loopController.use('boneHand', { scene: scene, arm: true });
+  // Plugins handHolding and handEntry already included with leap plugins.
+  Leap.loopController.on('handFound', onHandFound);
+  Leap.loopController.on('handLost', onHandLost);
   // Leap tracks hands up to about 50 cm (20 inches) in front of sensor.
 
 }
@@ -264,12 +286,58 @@ function updateGameState() {
 
 }  
 
+function onHandFound(hand) {
+  console.log("hand found");
+
+}
+
+function onHandLost(hand) {
+  console.log("hand lost");
+  if (hand.data("palmTracker")) {
+    GameState.trackerGroup.remove(hand.data("palmTracker"));
+    GameState.trackerGroup.remove(hand.data("punchTracker"));
+    GameState.trackerGroup.remove(hand.data("chopTracker"));
+  }
+}
+
+
+function updateTrackerPositions(hand, palmPosition, punchPosition, chopPosition) {
+  // Used for debugging, to see impact points on hand used for collision detection.
+
+  if (!hand.data("palmTracker")) {
+    // Create trackers.  This hand must have just entered the scene.
+    var palmTracker = newTrackerObject(palmPosition);
+    var punchTracker = newTrackerObject(punchPosition);
+    var chopTracker = newTrackerObject(chopPosition);
+
+    hand.data("palmTracker", palmTracker);
+    hand.data("punchTracker", punchTracker);
+    hand.data("chopTracker", chopTracker);
+  } else {
+    // Move trackers to new positions.
+    hand.data("palmTracker").position.set(palmPosition.x, palmPosition.y, palmPosition.z);
+    hand.data("punchTracker").position.set(punchPosition.x, punchPosition.y, punchPosition.z);
+    hand.data("chopTracker").position.set(chopPosition.x, chopPosition.y, chopPosition.z);
+  }
+}
+
+
 function checkHandPosition() {
 
   // Do any hands collide with any balls?
   for (var i=0; i < GameState.handObjects.length; i++) {
     var hand = GameState.handObjects[i];
-    var palmPosition = new THREE.Vector3().fromArray(hand.palmPosition);
+
+    // Palm tracker: Middle finger, base of metacarpal bone.
+    var palmPosition = new THREE.Vector3().fromArray(hand.middleFinger.carpPosition);
+
+    // Punch tracker: Middle finger knuckle.
+    var punchPosition = new THREE.Vector3().fromArray(hand.middleFinger.mcpPosition);
+
+    // Chop tracker: Pinky finger, middle of metacarpal bone.
+    var chopPosition = new THREE.Vector3().fromArray(hand.pinky.metacarpal.center());
+
+    if (DEBUG) updateTrackerPositions(hand, palmPosition, punchPosition, chopPosition);
 
     for (var j=0; j < GameState.ballObjects.length; j++) {
       var ball = GameState.ballObjects[j];
