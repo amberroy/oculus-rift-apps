@@ -42,7 +42,7 @@
 var DEBUG = true;
 var frameCount = 0;
 var stopAnimation = false;
-var stopAnimationPending = false;
+var stopAnimationRequest = false;
 var ZERO_VECTOR3 = new THREE.Vector3(0,0,0);
 
 var vrControls, vrEffect;
@@ -53,8 +53,8 @@ var GameParams = Object.freeze({
   ballStartX: 0.0,
   ballStartY: 0.03,
   ballStartZ: -2.0,
-  ballRangeX: 0.3,    // 0.3
-  ballRangeY: 0.2,    // 0.2
+  ballRangeX: 0.1,    // 0.3
+  ballRangeY: 0.1,    // 0.2
   ballIntervalZ: 0.5, // 0.5
   ballSpeedStart: 0.005,
   ballSpeedInc: 0.1,
@@ -62,6 +62,11 @@ var GameParams = Object.freeze({
   grabStrength: 0.5,
   ballColor: 0xcc0000,      // red
   ballCount: 10,
+  ballMissedZ: -0.1,
+  playerWidth: 0.5,
+  playerHeightUp: 0.2,
+  playerHeightDown: 2.0,
+  missedEffectMillis: 500,
 });
 
 var TextParams = Object.freeze({
@@ -82,6 +87,8 @@ var GameState = {
   leapFrame: null,
   textObject: null,
   hitCount: 0,
+  restartLevel: false,
+  livesLeft: 3,
   gameOver: false,
   ballGroup: null,
   headPosition: new THREE.Vector3(0,0,0),
@@ -138,6 +145,7 @@ function createLevel(level) {
 
   GameState.level = level;
   GameState.hitCount = 0;  
+  GameState.restartLevel = false;
   GameState.gameOver = false;
   GameState.ballObjects = [];
   GameState.ballGroup = new THREE.Object3D();
@@ -236,8 +244,7 @@ function onKeyPress(event) {
         console.log("Animation PLAYING");
         stopAnimation = false;
       } else {
-        stopAnimation = true;
-        stopAnimationPending = true;
+        stopAnimationRequest = true;
         console.log("Animation PAUSED");
       }
     }
@@ -250,9 +257,13 @@ function updateGameState() {
   checkHandPosition();
   updateBallPosition();
 
-  // Move to next level, or restart the current one.
-  if (GameState.hitCount === GameParams.ballCount || GameState.gameOver) {
-    createLevel( GameState.gameOver ? GameState.level : GameState.level+1 );
+  // Move to next level, restart the current one, or restart the game.
+  if (GameState.gameOver) {
+    createLevel(1);
+  } else if (GameState.hitCount === GameParams.ballCount) {
+    createLevel(GameState.level+1);
+  } else if (GameState.restartLevel) {
+    createLevel(GameState.level);
   }
 
 }  
@@ -312,10 +323,27 @@ function updateBallPosition() {
       }
     }
 
-    if (ball.ballState.isInPlay && ball.position.z > 0)  {
+    if (ball.ballState.isInPlay && ball.position.z > GameParams.ballMissedZ)  {
       // Ball just went out of play.
-      GameState.gameOver = true;  
-      ball.ballState.isInPlay = false;
+      if (ball.position.x < camera.position.x - GameParams.playerWidth/2 ||
+          ball.position.x > camera.position.x + GameParams.playerWidth/2 ||
+          ball.position.y > camera.position.y + GameParams.playerHeightUp ||
+          ball.position.y < camera.position.y - GameParams.playerHeightDown) {
+        console.log("Ball missed, but didn't hit player");
+      } else {
+        missedBallEffect(ball);
+        ball.ballState.isInPlay = false;
+        stopAnimation = true;
+        GameState.livesLeft--;
+        setTimeout(function () {
+          if (GameState.livesLeft === 0) {
+            GameState.gameOver = true;
+          } else {
+            GameState.restartLevel = true;
+          }
+          stopAnimation = false;
+        }, GameParams.missedEffectMillis);
+      }
     }
 
     if (ball.ballState.isInPlay) {
@@ -329,12 +357,25 @@ function updateBallPosition() {
   }
 }
 
+function missedBallEffect(ball) {
+
+  ball.visible = false;
+  var splatGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
+  var color = ball.material.color;
+  var splatMat = new THREE.MeshBasicMaterial({color: color, side: THREE.BackSide});
+  var splat = new THREE.Mesh(splatGeo, splatMat);
+  splat.position.set(ball.position.x, ball.position.y, GameParams.ballMissedZ);
+  GameState.ballGroup.add(splat);
+
+}
+
 
 function render() {
-  if (stopAnimation) {
-    if (stopAnimationPending) {
+  if (stopAnimation || stopAnimationRequest) {
+    if (stopAnimationRequest) {
       logDebugInfo();
-      stopAnimationPending = false;
+      stopAnimation = true;
+      stopAnimationRequest = false;
     }
     requestAnimationFrame(render);
     return;
