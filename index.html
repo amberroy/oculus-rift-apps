@@ -94,6 +94,7 @@ var BallState = {
   wasPalm: false,
   wasPunch: false,
   handId: null,
+  outline: null,
 };
 
 
@@ -173,6 +174,16 @@ function createBallObject(color, index) {
   GameState.ballObjects.push(ball);
   GameState.ballGroup.add(ball);
   // colors: 0x00cc00 (lime), 0x0000cc (blue), 0xcc0000 (red), 0xcccc00 (yellow)
+
+  if (color === GameParams.colorToPunch) {
+    var outlineMat = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.BackSide } );
+    var outlineMesh = new THREE.Mesh(ballGeo, outlineMat);
+    outlineMesh.position = ball.position;
+    outlineMesh.scale.multiplyScalar(1.05);
+    GameState.ballGroup.add(outlineMesh);
+    ball.ballState.outline = outlineMesh;
+  }
+
   return ball;
 }
 
@@ -287,17 +298,18 @@ function checkHandPosition() {
         if (hand.grabStrength > GameParams.grabStrength) {
           // Punch!
           if (DEBUG) console.log("Hand["+i+"] PUNCHED Ball["+j+"] ", ball.position);
-          createTextObject("PUNCH"); // XXX
           ball.ballState.wasPunch = true;
         } else {
           // Palm!
           if (DEBUG) console.log("Hand["+i+"] PALMED Ball["+j+"] ", ball.position);
-          createTextObject("PALMED"); // XXX
           ball.ballState.wasPalm = true;
         }
         GameState.doneCount++;
-        ball.visible = false;
         ball.ballState.isInPlay = false;
+        ball.visible = false;
+        if (ball.ballState.outline) {
+          ball.ballState.outline.visible = false;
+        }
       }
     }
   }  
@@ -343,7 +355,11 @@ function updateBallPosition() {
       // Move ball according to initial speed and current level.
       var percentInc = GameParams.ballSpeedInc * (GameState.level-1);
       var ballSpeedAdd = GameParams.ballSpeedStart * percentInc;
-      ball.translateZ(GameParams.ballSpeedStart + ballSpeedAdd);
+      var ballStep = GameParams.ballSpeedStart + ballSpeedAdd;
+      ball.translateZ(ballStep);
+      if (ball.ballState.outline) {
+        ball.ballState.outline.position.set(ball.position.x, ball.position.y, ball.position.z);
+      }
     }
 
   }
