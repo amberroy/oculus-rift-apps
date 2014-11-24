@@ -53,9 +53,9 @@ var GameParams = Object.freeze({
   ballStartX: 0.0,
   ballStartY: 0.03,
   ballStartZ: -2.0,
-  ballRangeX: 0.0,    // 0.3
-  ballRangeY: 0.0,    // 0.2
-  ballIntervalZ: 1.0, // 0.5
+  ballRangeX: 0.3,    // 0.3
+  ballRangeY: 0.2,    // 0.2
+  ballIntervalZ: 0.5, // 0.5
   ballSpeedStart: 0.005,
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
@@ -82,17 +82,16 @@ var GameState = {
   handObjects: [],
   leapFrame: null,
   textObject: null,
-  doneCount: 0,
+  hitCount: 0,
   gameOver: false,
   ballGroup: null,
   headPosition: new THREE.Vector3(0,0,0),
 };
 
 var BallState = {
+  isPunchBall: false,
   isInPlay: false,
   isInHand: false,
-  wasPalm: false,
-  wasPunch: false,
   handId: null,
   outline: null,
 };
@@ -141,20 +140,20 @@ function createLevel(level) {
   scene.remove(GameState.text);
 
   GameState.level = level;
-  GameState.doneCount = 0;  
+  GameState.hitCount = 0;  
   GameState.gameOver = false;
   GameState.ballObjects = [];
   GameState.ballGroup = new THREE.Object3D();
   GameState.ballSpeed = GameState.ballSpeed + (GameParams.ballSpeedStart *
                         (GameParams.ballSpeedInc * (GameState.level-1)));
 
-  var toPunchIndex = Math.floor(Math.random() * GameParams.ballCount);
+  var punchBallIndex = Math.floor(Math.random() * GameParams.ballCount);
   for (var i=0; i < GameParams.ballCount; i++) {
     var ball;
-    if (toPunchIndex === i) {
-      createBallObject(GameParams.colorToPunch, i);
+    if (punchBallIndex == i) {
+      createBallObject(GameParams.colorToPunch, i, true);
     } else {
-      createBallObject(GameParams.colorToPalm, i);
+      createBallObject(GameParams.colorToPalm, i, false);
     }
   }
   scene.add(GameState.ballGroup);
@@ -163,19 +162,20 @@ function createLevel(level) {
   if (DEBUG) console.log("Started Level "+GameState.level);
 }
 
-function createBallObject(color, index) {
+function createBallObject(color, index, isPunchBall) {
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
   var ballMat = new THREE.MeshPhongMaterial({color: color});
   var ball = new THREE.Mesh(ballGeo, ballMat);
   randomBallPosition(ball, index);
+
   ball.ballState = Object.create(BallState);
   ball.ballState.isInPlay = true;
+  ball.ballState.isPunchBall = isPunchBall;
   GameState.ballObjects.push(ball);
   GameState.ballGroup.add(ball);
-  // colors: 0x00cc00 (lime), 0x0000cc (blue), 0xcc0000 (red), 0xcccc00 (yellow)
 
-  if (color === GameParams.colorToPunch) {
+  if (isPunchBall) {
     var outlineMat = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.BackSide } );
     var outlineMesh = new THREE.Mesh(ballGeo, outlineMat);
     outlineMesh.position = ball.position;
@@ -270,7 +270,7 @@ function updateGameState() {
   updateBallPosition();
 
   // Move to next level, or restart the current one.
-  if (GameState.doneCount === GameParams.ballCount || GameState.gameOver) {
+  if (GameState.hitCount === GameParams.ballCount || GameState.gameOver) {
     createLevel( GameState.gameOver ? GameState.level : GameState.level+1 );
   }
 
@@ -294,18 +294,25 @@ function checkHandPosition() {
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + GameParams.hitTolerance) {
-
+        // Hit! determine if Punch or Palm.  We don't use this info right now.
         if (hand.grabStrength > GameParams.grabStrength) {
           // Punch!
           if (DEBUG) console.log("Hand["+i+"] PUNCHED Ball["+j+"] ", ball.position);
-          ball.ballState.wasPunch = true;
+          // Ignore hit, player was supposed to palm.
+          if (!ball.isPunchBall) {
+            continue;
+          }
         } else {
           // Palm!
           if (DEBUG) console.log("Hand["+i+"] PALMED Ball["+j+"] ", ball.position);
-          ball.ballState.wasPalm = true;
+          // Ignore hit, player was supposed to punch.
+          if (ball.isPunchBall) {
+            continue;
+          }
         }
-        GameState.doneCount++;
+        GameState.hitCount++;
         ball.ballState.isInPlay = false;
+        // Leave ball in the scene for now, but make invisible.
         ball.visible = false;
         if (ball.ballState.outline) {
           ball.ballState.outline.visible = false;
@@ -342,12 +349,7 @@ function updateBallPosition() {
 
     if (ball.ballState.isInPlay && ball.position.z > 0)  {
       // Ball just went out of play.
-      if (DEBUG) console.log("Ball["+i+"] went out of play with visible="+ball.visible);
-      if (ball.ballState.wasPalm) {
-        GameState.doneCount++;
-      } else {
-        GameState.gameOver = true;  
-      }
+      GameState.gameOver = true;  
       ball.ballState.isInPlay = false;
     }
 
