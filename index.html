@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="en">
-  <!-- Copyright (c) Amber Roy 2014  -->
+<!--
+  Copyright (c) Amber Roy 2014
+
+  Dojo based on image by Brain Lee Trewitt
+  https://brianleetrewitt.wordpress.com/2013/06/07/matrix-dojo/
+-->
   <head>
     <title>Rift Dojo - Leap Motion 3D Game Jam</title>
     <meta charset="utf-8">
@@ -48,6 +53,12 @@ var ZERO_VECTOR3 = new THREE.Vector3(0,0,0);
 var vrControls, vrEffect;
 var scene, camera, renderer;
 
+var SceneParams = Object.freeze({
+  skyBoxWidth: 18,
+  skyBoxHeight: 8,
+  skyBoxDepth: 18,
+});
+
 var GameParams = Object.freeze({
   ballRadius: 0.04,
   ballStartX: 0.0,
@@ -71,12 +82,12 @@ var GameParams = Object.freeze({
 });
 
 var TextParams = Object.freeze({
-  color: 0xffffff,
-  startX: -0.05,
-  startY: 0.03,
-  startZ: -0.5,
+  color: 0x000000,
+  startX: -0.40,
+  startY: 1.1,
+  startZ: -9, // skyBoxDepth/2
   font: "helvetiker",
-  size: 0.05,
+  size: 0.20,
   height: 0.001,
 });
 
@@ -137,6 +148,8 @@ function initScene() {
 
   var light = new THREE.PointLight(0xffffff, 1, 1000);
   scene.add(light);
+
+  createSkyBox();
 
   createLevel(1);
 }
@@ -205,6 +218,33 @@ function createTextObject(text) {
   setTimeout( function() {
     scene.remove(text); 
   }, 2000);
+}
+
+function createSkyBox() {
+  // axes
+  var axes = new THREE.AxisHelper(100);
+  scene.add( axes );
+  
+  var imagePrefix = "images/white-dojo-";
+  var directions  = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
+  var imageSuffix = ".png";
+  //var skyGeometry = new THREE.CubeGeometry( 5000, 5000, 5000 ); 
+  //var skyGeometry = new THREE.CubeGeometry( 12, 8, 12 ); 
+  var skyGeometry = new THREE.CubeGeometry(SceneParams.skyBoxWidth,
+                                           SceneParams.skyBoxHeight, 
+                                           SceneParams.skyBoxDepth);
+  
+  var materialArray = [];
+  for (var i = 0; i < 6; i++)
+    materialArray.push( new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture( imagePrefix + directions[i] + imageSuffix ),
+      side: THREE.BackSide
+    }));
+  var skyMaterial = new THREE.MeshFaceMaterial( materialArray );
+  var skyBox = new THREE.Mesh( skyGeometry, skyMaterial );
+  var skyBoxY = SceneParams.skyBoxHeight/2 - GameParams.playerHeightDown;
+  skyBox.position.set(0, skyBoxY, 0);
+  scene.add( skyBox );
+
 }
 
 function initVR() {
