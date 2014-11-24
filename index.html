@@ -60,8 +60,8 @@ var GameParams = Object.freeze({
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
   grabStrength: 0.5,
-  colorToPalm: 0xcc0000,  // red
-  colorToPunch: 0x0000cc, // blue
+  colorBall: 0xcc0000,      // red
+  colorPowerBall: 0x0000cc, // blue
   ballCount: 5,
 });
 
@@ -89,7 +89,7 @@ var GameState = {
 };
 
 var BallState = {
-  isPunchBall: false,
+  isPowerBall: false,
   isInPlay: false,
   isInHand: false,
   handId: null,
@@ -147,13 +147,13 @@ function createLevel(level) {
   GameState.ballSpeed = GameState.ballSpeed + (GameParams.ballSpeedStart *
                         (GameParams.ballSpeedInc * (GameState.level-1)));
 
-  var punchBallIndex = Math.floor(Math.random() * GameParams.ballCount);
+  var powerBallIndex = Math.floor(Math.random() * GameParams.ballCount);
   for (var i=0; i < GameParams.ballCount; i++) {
     var ball;
-    if (punchBallIndex == i) {
-      createBallObject(GameParams.colorToPunch, i, true);
+    if (powerBallIndex == i) {
+      createBallObject(GameParams.colorPowerBall, i, true);
     } else {
-      createBallObject(GameParams.colorToPalm, i, false);
+      createBallObject(GameParams.colorBall, i, false);
     }
   }
   scene.add(GameState.ballGroup);
@@ -162,7 +162,7 @@ function createLevel(level) {
   if (DEBUG) console.log("Started Level "+GameState.level);
 }
 
-function createBallObject(color, index, isPunchBall) {
+function createBallObject(color, index, isPowerBall) {
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
   var ballMat = new THREE.MeshPhongMaterial({color: color});
@@ -171,11 +171,11 @@ function createBallObject(color, index, isPunchBall) {
 
   ball.ballState = Object.create(BallState);
   ball.ballState.isInPlay = true;
-  ball.ballState.isPunchBall = isPunchBall;
+  ball.ballState.isPowerBall = isPowerBall;
   GameState.ballObjects.push(ball);
   GameState.ballGroup.add(ball);
 
-  if (isPunchBall) {
+  if (isPowerBall) {
     var outlineMat = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.BackSide } );
     var outlineMesh = new THREE.Mesh(ballGeo, outlineMat);
     outlineMesh.position = ball.position;
@@ -294,29 +294,17 @@ function checkHandPosition() {
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + GameParams.hitTolerance) {
-        // Hit! determine if Punch or Palm.  We don't use this info right now.
-        if (hand.grabStrength > GameParams.grabStrength) {
-          // Punch!
-          if (DEBUG) console.log("Hand["+i+"] PUNCHED Ball["+j+"] ", ball.position);
-          // Ignore hit, player was supposed to palm.
-          if (!ball.isPunchBall) {
-            continue;
-          }
-        } else {
-          // Palm!
-          if (DEBUG) console.log("Hand["+i+"] PALMED Ball["+j+"] ", ball.position);
-          // Ignore hit, player was supposed to punch.
-          if (ball.isPunchBall) {
-            continue;
-          }
-        }
+        // Hit!
+        if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
         GameState.hitCount++;
         ball.ballState.isInPlay = false;
+
         // Leave ball in the scene for now, but make invisible.
         ball.visible = false;
         if (ball.ballState.outline) {
           ball.ballState.outline.visible = false;
         }
+        // We don't do anything special if ball.isPowerBall for now.
       }
     }
   }  
