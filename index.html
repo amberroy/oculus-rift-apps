@@ -56,6 +56,7 @@ var GameParams = Object.freeze({
   ballRangeX: 0.1,    // 0.3
   ballRangeY: 0.1,    // 0.2
   ballIntervalZ: 0.5, // 0.5
+  ballStopZ: 1.5,
   ballSpeedStart: 0.005,
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
@@ -87,6 +88,7 @@ var GameState = {
   leapFrame: null,
   textObject: null,
   hitCount: 0,
+  missCount: 0,
   restartLevel: false,
   livesLeft: 3,
   gameOver: false,
@@ -145,6 +147,7 @@ function createLevel(level) {
 
   GameState.level = level;
   GameState.hitCount = 0;  
+  GameState.missCount = 0;  
   GameState.restartLevel = false;
   GameState.gameOver = false;
   GameState.ballObjects = [];
@@ -260,8 +263,13 @@ function updateGameState() {
   // Move to next level, restart the current one, or restart the game.
   if (GameState.gameOver) {
     createLevel(1);
+
   } else if (GameState.hitCount === GameParams.ballCount) {
     createLevel(GameState.level+1);
+
+  } else if (GameState.hitCount + GameState.missCount === GameState.ballCount) {
+    createLevel(GameState.level);
+
   } else if (GameState.restartLevel) {
     createLevel(GameState.level);
   }
@@ -323,7 +331,6 @@ function updateBallPosition() {
       }
     }
 
-    //if (ball.ballState.isInPlay && ball.position.z > GameParams.ballMissedZ)  {
     if (ball.ballState.isInPlay && 
         ball.position.z > camera.position.z - GameParams.playerBufferZ)  {
 
@@ -346,8 +353,15 @@ function updateBallPosition() {
           }
           stopAnimation = false;
         }, GameParams.missedEffectMillis);
+      } else {
+        // Ball passed player, stop it when out of arms reach.
+        if (ball.position.z > GameParams.ballStopZ) {
+          console.log("ball stoped at Z", ball.position.z);
+          impactEffect(ball); // Use same effect for now.
+          ball.ballState.isInPlay = false;
+          GameState.missCount++;
+        }
       }
-      // If ball passed by player without impact, do nothing for now.
     }
 
     if (ball.ballState.isInPlay) {
