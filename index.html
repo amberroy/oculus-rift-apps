@@ -79,16 +79,21 @@ var GameParams = Object.freeze({
   playerHeightUp: 0.2,
   playerHeightDown: 2.0,
   missedEffectMillis: 500,
+  playerLives: 3, // 3
 });
 
 var TextParams = Object.freeze({
   color: 0x000000,
-  startX: -0.40,
   startY: 1.1,
-  startZ: -9, // skyBoxDepth/2
+  startZ: -1 * SceneParams.skyBoxDepth/2,
   font: "helvetiker",
-  size: 0.20,
   height: 0.001,
+  levelStartX: -0.40,
+  levelSize: 0.20,
+  levelTimeout: 2000,
+  gameStartX: -0.64,
+  gameSize: 0.17,
+  gameTimeout: 3000,
 });
 
 var GameState = {
@@ -101,7 +106,7 @@ var GameState = {
   hitCount: 0,
   missCount: 0,
   restartLevel: false,
-  livesLeft: 3,
+  livesLeft: GameParams.playerLives,
   gameOver: false,
   ballGroup: null,
   headPosition: new THREE.Vector3(0,0,0),
@@ -173,7 +178,10 @@ function createLevel(level) {
   }
   scene.add(GameState.ballGroup);
 
-  createTextObject("Level "+GameState.level); 
+  createTextObject("Level " + GameState.level,
+                   TextParams.levelStartX,
+                   TextParams.levelSize,
+                   TextParams.levelTimeout);
   if (DEBUG) console.log("Started Level "+GameState.level);
 }
 
@@ -203,33 +211,28 @@ function randomBallPosition(ball, index) {
 
 }
 
-function createTextObject(text) {
+function createTextObject(text, startX, size, timeout) {
   var params = { 
     font: TextParams.font,
-    size: TextParams.size,
+    size: size,
     height: TextParams.height
   };
   var textGeo = new THREE.TextGeometry(text, params);
   var textMat = new THREE.MeshBasicMaterial({color: TextParams.color });
   var text = new THREE.Mesh(textGeo, textMat);
-  text.position.fromArray( [TextParams.startX, TextParams.startY, TextParams.startZ] );
+  text.position.fromArray( [startX, TextParams.startY, TextParams.startZ] );
   scene.add(text);
 
   setTimeout( function() {
     scene.remove(text); 
-  }, 2000);
+  }, timeout);
 }
 
 function createSkyBox() {
-  // axes
-  var axes = new THREE.AxisHelper(100);
-  scene.add( axes );
   
   var imagePrefix = "images/white-dojo-";
   var directions  = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
   var imageSuffix = ".png";
-  //var skyGeometry = new THREE.CubeGeometry( 5000, 5000, 5000 ); 
-  //var skyGeometry = new THREE.CubeGeometry( 12, 8, 12 ); 
   var skyGeometry = new THREE.CubeGeometry(SceneParams.skyBoxWidth,
                                            SceneParams.skyBoxHeight, 
                                            SceneParams.skyBoxDepth);
@@ -302,7 +305,16 @@ function updateGameState() {
 
   // Move to next level, restart the current one, or restart the game.
   if (GameState.gameOver) {
-    createLevel(1);
+    createTextObject("GAME OVER",
+                     TextParams.gameStartX,
+                     TextParams.gameSize,
+                     TextParams.gameTimeout);
+    stopAnimation = true;
+    setTimeout( function() {
+      stopAnimation = false;
+      GameState.livesLeft = GameParams.playerLives;
+      createLevel(1);
+    }, TextParams.gameTimeout);
 
   } else if (GameState.hitCount === GameParams.ballCount) {
     createLevel(GameState.level+1);
