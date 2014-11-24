@@ -62,7 +62,7 @@ var GameParams = Object.freeze({
   grabStrength: 0.5,
   ballColor: 0xcc0000,      // red
   ballCount: 10,
-  ballMissedZ: -0.1,
+  playerBufferZ: 0.1,
   playerWidth: 0.5,
   playerHeightUp: 0.2,
   playerHeightDown: 2.0,
@@ -323,15 +323,18 @@ function updateBallPosition() {
       }
     }
 
-    if (ball.ballState.isInPlay && ball.position.z > GameParams.ballMissedZ)  {
-      // Ball just went out of play.
-      if (ball.position.x < camera.position.x - GameParams.playerWidth/2 ||
-          ball.position.x > camera.position.x + GameParams.playerWidth/2 ||
-          ball.position.y > camera.position.y + GameParams.playerHeightUp ||
-          ball.position.y < camera.position.y - GameParams.playerHeightDown) {
-        console.log("Ball missed, but didn't hit player");
-      } else {
-        missedBallEffect(ball);
+    //if (ball.ballState.isInPlay && ball.position.z > GameParams.ballMissedZ)  {
+    if (ball.ballState.isInPlay && 
+        ball.position.z > camera.position.z - GameParams.playerBufferZ)  {
+
+      // Ball just went into players buffer zone, check for impact.
+      if (ball.position.x > camera.position.x - GameParams.playerWidth/2 &&
+          ball.position.x < camera.position.x + GameParams.playerWidth/2 &&
+          ball.position.y < camera.position.y + GameParams.playerHeightUp &&
+          ball.position.y > camera.position.y - GameParams.playerHeightDown) {
+
+        // Impact!  
+        impactEffect(ball);
         ball.ballState.isInPlay = false;
         stopAnimation = true;
         GameState.livesLeft--;
@@ -344,6 +347,7 @@ function updateBallPosition() {
           stopAnimation = false;
         }, GameParams.missedEffectMillis);
       }
+      // If ball passed by player without impact, do nothing for now.
     }
 
     if (ball.ballState.isInPlay) {
@@ -357,14 +361,14 @@ function updateBallPosition() {
   }
 }
 
-function missedBallEffect(ball) {
+function impactEffect(ball) {
 
   ball.visible = false;
   var splatGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
   var color = ball.material.color;
   var splatMat = new THREE.MeshBasicMaterial({color: color, side: THREE.BackSide});
   var splat = new THREE.Mesh(splatGeo, splatMat);
-  splat.position.set(ball.position.x, ball.position.y, GameParams.ballMissedZ);
+  splat.position.set(ball.position.x, ball.position.y, ball.position.z);
   GameState.ballGroup.add(splat);
 
 }
