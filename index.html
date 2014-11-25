@@ -8,10 +8,11 @@
 
   Sound effects:
   hard-pop.wav - https://www.freesound.org/people/juskiddink/sounds/108616/
-  zen-gong.wav - https://www.freesound.org/people/djgriffin/sounds/20780/
   flapping-thud.wav - https://www.freesound.org/people/Setuniman/sounds/131141/
   koto-hit.wav - https://www.freesound.org/people/Mondschein90/sounds/175672/
   monochord-03.wav - https://www.freesound.org/people/Jagadamba/sounds/253765/
+  gong.wav - https://www.freesound.org/people/SuperDaveOsbourne/sounds/63643/
+  flute.wav - https://www.freesound.org/people/Soughtaftersounds/sounds/145447/
 -->
   <head>
     <title>Rift Dojo - Leap Motion 3D Game Jam</title>
@@ -89,7 +90,8 @@ var GameParams = Object.freeze({
   playerLives: 3, // 3
   soundHitBall: new Audio("sounds/hard-pop.wav"),
   soundHitPlayer: new Audio("sounds/flapping-thud.wav"),
-  soundGameOver: new Audio("sounds/zen-gong.wav"),
+  soundGameOver: new Audio("sounds/gong.wav"),
+  soundGameStart: new Audio("sounds/flute.wav"),
   soundNextLevel: new Audio("sounds/koto-hit.wav"),
   soundRestartLevel: new Audio("sounds/monochord-03.wav"),
 });
@@ -168,6 +170,7 @@ function initScene() {
 
   createSkyBox();
 
+  GameParams.soundGameStart.play();
   createLevel(1);
 }
 
@@ -194,7 +197,6 @@ function createLevel(level) {
                    TextParams.levelStartX,
                    TextParams.levelSize,
                    TextParams.levelTimeout);
-  if (DEBUG) console.log("Started Level "+GameState.level);
 }
 
 function createBallObject(color, index) {
@@ -245,9 +247,9 @@ function createSkyBox() {
   var imagePrefix = "images/white-dojo-";
   var directions  = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
   var imageSuffix = ".png";
-  var skyGeometry = new THREE.CubeGeometry(SceneParams.skyBoxWidth,
-                                           SceneParams.skyBoxHeight, 
-                                           SceneParams.skyBoxDepth);
+  var skyGeometry = new THREE.BoxGeometry(SceneParams.skyBoxWidth,
+                                          SceneParams.skyBoxHeight, 
+                                          SceneParams.skyBoxDepth);
   
   var materialArray = [];
   for (var i = 0; i < 6; i++)
@@ -326,6 +328,7 @@ function updateGameState() {
     setTimeout( function() {
       stopAnimation = false;
       GameState.livesLeft = GameParams.playerLives;
+      GameParams.soundGameStart.play();
       createLevel(1);
     }, TextParams.gameTimeout);
 
@@ -489,10 +492,7 @@ function render() {
 }
 
 function logDebugInfo() {
-  for (var i=0; i < GameState.ballObjects.length; i++) {
-    var ball = GameState.ballObjects[i];
-    console.log("ball[" + i + "] state: ", ball.ballState);
-  }
+  // Nothing for now.
 }
 
 function main() {
