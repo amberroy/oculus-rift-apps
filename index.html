@@ -3,8 +3,15 @@
 <!--
   Copyright (c) Amber Roy 2014
 
-  Dojo based on image by Brain Lee Trewitt
-  https://brianleetrewitt.wordpress.com/2013/06/07/matrix-dojo/
+  Image Credits:
+  white-dojo.png - https://brianleetrewitt.wordpress.com/2013/06/07/matrix-dojo/
+
+  Sound effects:
+  hard-pop.wav - https://www.freesound.org/people/juskiddink/sounds/108616/
+  zen-gong.wav - https://www.freesound.org/people/djgriffin/sounds/20780/
+  flapping-thud.wav - https://www.freesound.org/people/Setuniman/sounds/131141/
+  koto-hit.wav - https://www.freesound.org/people/Mondschein90/sounds/175672/
+  monochord-03.wav - https://www.freesound.org/people/Jagadamba/sounds/253765/
 -->
   <head>
     <title>Rift Dojo - Leap Motion 3D Game Jam</title>
@@ -80,6 +87,11 @@ var GameParams = Object.freeze({
   playerHeightDown: 2.0,
   missedEffectMillis: 500,
   playerLives: 3, // 3
+  soundHitBall: new Audio("sounds/hard-pop.wav"),
+  soundHitPlayer: new Audio("sounds/flapping-thud.wav"),
+  soundGameOver: new Audio("sounds/zen-gong.wav"),
+  soundNextLevel: new Audio("sounds/koto-hit.wav"),
+  soundRestartLevel: new Audio("sounds/monochord-03.wav"),
 });
 
 var TextParams = Object.freeze({
@@ -188,7 +200,7 @@ function createLevel(level) {
 function createBallObject(color, index) {
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
-  var ballMat = new THREE.MeshPhongMaterial({color: color});
+  var ballMat = new THREE.MeshPhongMaterial({color: color});  
   var ball = new THREE.Mesh(ballGeo, ballMat);
   randomBallPosition(ball, index);
 
@@ -310,6 +322,7 @@ function updateGameState() {
                      TextParams.gameSize,
                      TextParams.gameTimeout);
     stopAnimation = true;
+    GameParams.soundGameOver.play();
     setTimeout( function() {
       stopAnimation = false;
       GameState.livesLeft = GameParams.playerLives;
@@ -317,12 +330,15 @@ function updateGameState() {
     }, TextParams.gameTimeout);
 
   } else if (GameState.hitCount === GameParams.ballCount) {
+    GameParams.soundNextLevel.play();
     createLevel(GameState.level+1);
 
   } else if (GameState.hitCount + GameState.missCount === GameParams.ballCount) {
+    GameParams.soundRestartLevel.play();
     createLevel(GameState.level);
 
   } else if (GameState.restartLevel) {
+    GameParams.soundRestartLevel.play();
     createLevel(GameState.level);
   }
 
@@ -350,6 +366,7 @@ function checkHandPosition() {
         if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
         GameState.hitCount++;
         ball.ballState.isInPlay = false;
+        GameParams.soundHitBall.play();
 
         // Leave ball in the scene for now, but make invisible.
         ball.visible = false;
@@ -397,6 +414,7 @@ function updateBallPosition() {
         ball.ballState.isInPlay = false;
         stopAnimation = true;
         GameState.livesLeft--;
+        GameParams.soundHitPlayer.play();
         setTimeout(function () {
           if (GameState.livesLeft === 0) {
             GameState.gameOver = true;
@@ -408,7 +426,6 @@ function updateBallPosition() {
       } else {
         // Ball passed player, stop it when out of arms reach.
         if (ball.position.z > GameParams.ballStopZ) {
-          console.log("ball stoped at Z", ball.position.z);
           impactEffect(ball); // Use same effect for now.
           ball.ballState.isInPlay = false;
           GameState.missCount++;
