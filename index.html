@@ -39,6 +39,7 @@
     <script src="js/leap-0.6.3.min.js"></script> 
     <script src="js/leap-plugins-0.1.9.js"></script> 
     <script src="js/leap.rigged-hand-0.1.5.min.js"></script>
+    <script src="js/leap.transform.js"></script>
 
     <!-- VR scripts from the THREE.js repo, VREffect modified slightly. -->
     <script src="js/VRControls.js"></script>
@@ -339,9 +340,11 @@ function initLeap() {
   Leap.loopController.use('handHold');  // for hand.data
   Leap.loopController.use('handEntry');  // for onHandEntry, onHandLost
 
-  Leap.loopController.use('transform', { 
+  // Use my custom transform that supports VR scene with desktop leap.
+  Leap.loopController.use('mytransform', {
     vr: true,
-    effectiveParent: camera 
+    hmd: SceneState.vrEnabled,
+    effectiveParent: camera,
   });
 
   switch (SceneParams.handModel) {
@@ -362,8 +365,10 @@ function initLeap() {
       // Plugin controls render loop, calls requestAnimationFrame then renderFn.
       renderFn: render, 
 
-      // Default y = -10, but when mounted on HMD we want it at zero.
-      offset: new THREE.Vector3(0, 0, 0),
+      // Default y = -10in (0.25m), but when mounted on HMD we want it at zero.
+      offset: SceneState.vrEnabled ? new THREE.Vector3(0, 0, 0) : 
+                                     new THREE.Vector3(0, -0.25, 0),
+
 
       // Any valid Three.js material options are valid here.
       materialOptions: {
