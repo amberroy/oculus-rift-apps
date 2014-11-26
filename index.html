@@ -69,6 +69,8 @@ var SceneParams = Object.freeze({
 var SceneState = {
   isAnimating: true,
   stopAnimationRequest: false,
+  lastTime: Date.now(),
+  spinDuration: 5000,
 }
 
 var GameParams = Object.freeze({
@@ -179,7 +181,6 @@ function initScene() {
   createSkyBox();
 
   GameParams.soundGameStart.play();
-  //createLevel(1);
   createHomeScreen();
 }
 
@@ -202,12 +203,13 @@ function createHomeScreen() {
   GameState.level = 0;
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
-  //var ballTexture = new THREE.ImageUtils.loadTexture("images/yinyang.png")
-  //var ballMat = new THREE.MeshPhongMaterial({map: ballTexture});  
-  var ballMat = new THREE.MeshPhongMaterial({color: GameParams.ballColor});  
+  var ballTexture = new THREE.ImageUtils.loadTexture("images/yinyang.png")
+  var ballMat = new THREE.MeshPhongMaterial({map: ballTexture});  
   var ball = new THREE.Mesh(ballGeo, ballMat);
   ball.position.set(0, GameParams.homeStartY, GameParams.homeStartZ);
-  //ball.rotateOnAxis( new THREE.Vector3(0,1,0), ROTATE_ANGLE);
+
+  // Rotate ball so the yin-yang symbol starts near the front.
+  ball.rotateOnAxis( new THREE.Vector3(0,1,0), 90 * (Math.PI / 180));
 
   ball.ballState = Object.create(BallState);
   GameState.ballObjects.push(ball);
@@ -349,6 +351,10 @@ function onKeyPress(event) {
 window.addEventListener("keypress", onKeyPress, true);
 
 function updateGameState() {
+
+  if (GameState.level == 0) {
+    updateHomeScreen();
+  }
 
   checkHandPosition();
   updateBallPosition();
@@ -530,6 +536,22 @@ function update() {
 
 }
 
+function updateHomeScreen() {
+
+  var now = Date.now();
+  var timeDiff = now - SceneState.lastTime;
+  SceneState.lastTime = now;
+
+  // One full spin every spinDuration milliseconds, angle in radians.
+  var fractionOfCircle = timeDiff / SceneState.spinDuration;
+  var angle = Math.PI * 2 * fractionOfCircle;
+
+  for (var i=0; i < GameState.ballObjects.length; i++) {
+    var ball = GameState.ballObjects[i];
+    ball.rotation.y += angle;
+  }
+}
+
 function logDebugInfo() {
   // Nothing for now.
 }
@@ -537,6 +559,7 @@ function logDebugInfo() {
 function animate() { 
 
   requestAnimationFrame(animate);
+
 
   if (SceneState.stopAnimationRequest) {
     logDebugInfo();
