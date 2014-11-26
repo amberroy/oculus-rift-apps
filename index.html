@@ -4,16 +4,17 @@
   Copyright (c) Amber Roy 2014
 
   Image Credits:
-  white-dojo.png - https://brianleetrewitt.wordpress.com/2013/06/07/matrix-dojo/
+  white-dojo.png - http://brianleetrewitt.wordpress.com/2013/06/07/matrix-dojo/
+  yinyang.png - based on http://cosmicnavigator.com/node/1552
 
   Sound effects:
-  hard-pop.wav - https://www.freesound.org/people/juskiddink/sounds/108616/
-  flapping-thud.wav - https://www.freesound.org/people/Setuniman/sounds/131141/
-  koto-hit.wav - https://www.freesound.org/people/Mondschein90/sounds/175672/
-  monochord-03.wav - https://www.freesound.org/people/Jagadamba/sounds/253765/
-  gong.wav - https://www.freesound.org/people/SuperDaveOsbourne/sounds/63643/
-  flute.wav - https://www.freesound.org/people/Soughtaftersounds/sounds/145447/
-  low-bing.wav - https://www.freesound.org/people/nickgoa/sounds/186836/
+  hard-pop.wav - http://www.freesound.org/people/juskiddink/sounds/108616/
+  flapping-thud.wav - http://www.freesound.org/people/Setuniman/sounds/131141/
+  koto-hit.wav - http://www.freesound.org/people/Mondschein90/sounds/175672/
+  monochord-03.wav - http://www.freesound.org/people/Jagadamba/sounds/253765/
+  gong.wav - http://www.freesound.org/people/SuperDaveOsbourne/sounds/63643/
+  flute.wav - http://www.freesound.org/people/Soughtaftersounds/sounds/145447/
+  low-bing.wav - http://www.freesound.org/people/nickgoa/sounds/186836/
 -->
   <head>
     <title>Rift Dojo - Leap Motion 3D Game Jam</title>
@@ -225,16 +226,21 @@ function createLevel(level) {
 
   GameState.ballSpeed = GameState.ballSpeed + (GameParams.ballSpeedStart *
                         (GameParams.ballSpeedInc * (GameState.level-1)));
-
-  for (var i=0; i < GameParams.ballCount; i++) {
-    createBallObject(GameParams.ballColor, i);
-  }
-  scene.add(GameState.ballGroup);
-
+ 
   createTextObject("Level " + GameState.level,
                    TextParams.levelStartX,
                    TextParams.levelSize,
                    TextParams.levelTimeout);
+
+  setTimeout( function() {
+    // Wait a bit before adding objects to the scene.
+    for (var i=0; i < GameParams.ballCount; i++) {
+      createBallObject(GameParams.ballColor, i);
+    }
+    scene.add(GameState.ballGroup);
+
+  }, TextParams.levelTimeout);
+
 }
 
 function createBallObject(color, index) {
@@ -335,7 +341,6 @@ function onKeyPress(event) {
       break;
   }
   if (DEBUG) {
-    console.log("keypress", event.which);
     if (event.which === ' '.charCodeAt(0)) {
       // Pause/play animaiton on space bar.
       if (SceneState.isAnimating) {
@@ -369,7 +374,6 @@ function updateGameState() {
                      TextParams.gameSize,
                      TextParams.gameTimeout);
     setTimeout( function() {
-      SceneState.isAnimating = true;
       GameState.livesLeft = GameParams.playerLives;
       createHomeScreen();
     }, TextParams.gameTimeout);
@@ -417,7 +421,6 @@ function checkHandPosition() {
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + GameParams.hitTolerance) {
-        if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
         // Hit!
         GameState.hitCount++;
         if (GameState.hitCount === GameParams.ballCount) {
@@ -443,7 +446,6 @@ function updateBallPosition() {
     if (ball.ballState.isInHand) {
       var hand = GameState.leapFrame.hand(ball.ballState.handId);
       if (!hand.valid) {
-        console.log("Hand "+i+" was holding ball, but longer in frame");
         ball.visible = false;
         ball.ballState.isInHand = false;
         ball.handId = null;
@@ -451,7 +453,6 @@ function updateBallPosition() {
         if (hand.grabStrength > GameParams.grabStrength) {
           ball.position.fromArray(hand.palmPosition);
         } else {
-          if (DEBUG) console.log("Hand["+i+"] DROPPED Ball", ball.position);
           ball.visible = false;
           ball.ballState.isInHand = false;
           ball.handId = null;
@@ -578,8 +579,7 @@ function main() {
 
   initScene()
   initVR();
-  //render(); // XXX
-  animate();  // XXX
+  animate();
 }
 window.addEventListener("load", main);
 
