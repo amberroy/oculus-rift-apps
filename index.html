@@ -78,20 +78,15 @@ var SceneState = {
 
 var GameParams = Object.freeze({
   ballRadius: 0.04,
-  ballStartX: 0.0,
-  ballStartY: 0.03,
-  ballStartYNoVR: 0.0,
-  ballStartZ: -3.0,
-  ballRangeX: 0.3,      // 0.3
-  ballRangeY: 0.2,      // 0.2
-  ballRangeXNoVR: 0.2,
-  ballRangeYNoVR: 0.15,
+  ballStartVR: [0.0, 0.03, -3.0],
+  ballStartNoVR: [ 0.0, -0.01, -3.0],
+  ballRangeVR: [0.3, 0.2],
+  ballRangeNoVR: [0.2, 0.15],
   ballIntervalZ: 1.0,
   ballStopZ: 1.5,
   ballSpeedStart: 0.010,
   ballSpeedInc: 0.2,
   hitTolerance: 0.01,
-  hitToleranceNoVR: 0.01,
   grabStrength: 0.5,
   ballColor: 0xcc0000,  // red
   ballCount: 25,        // 25
@@ -278,18 +273,16 @@ function createBallObject(color, index) {
 }
 
 function randomBallPosition(ball, index) {
-  var ballRangeX = SceneState.vrEnabled ?
-               GameParams.ballRangeX : GameParams.ballRangeXNoVR;
-  var ballRangeY = SceneState.vrEnabled ?
-               GameParams.ballRangeY : GameParams.ballRangeYNoVR;
-  var randX = Math.random() * (ballRangeX*2) - ballRangeX;
-  var randY = Math.random() * (ballRangeY*2) - ballRangeY;
+  var ballRange = SceneState.vrEnabled ?
+                  GameParams.ballRangeVR : GameParams.ballRangeNoVR;
+  var randX = Math.random() * (ballRange[0]*2) - ballRange[0];
+  var randY = Math.random() * (ballRange[1]*2) - ballRange[1];
 
-  var ballStartY = SceneState.vrEnabled ? 
-                   GameParams.ballStartY : GameParams.ballStartYNoVR;
-  var ballX = GameParams.ballStartX + randX;
-  var ballY = ballStartY + randY;
-  var ballZ = GameParams.ballStartZ + (GameParams.ballIntervalZ * index * -1);
+  var ballStart = SceneState.vrEnabled ? 
+                  GameParams.ballStartVR : GameParams.ballStartNoVR;
+  var ballX = ballStart[0] + randX;
+  var ballY = ballStart[1] + randY;
+  var ballZ = ballStart[2] + (GameParams.ballIntervalZ * index * -1);
   ball.position.fromArray([ballX, ballY, ballZ]);
 
 }
@@ -356,7 +349,7 @@ function initLeap() {
     effectiveParent: camera,
     position: SceneState.vrEnabled ? 
               new THREE.Vector3(0, 0, -0.08) :        // VR default
-              new THREE.Vector3(0, -0.25, -0.37),     // for desktop
+              new THREE.Vector3(0, -0.25, -0.25),     // for desktop
   });
 
   switch (SceneParams.handModel) {
