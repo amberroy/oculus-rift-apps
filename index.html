@@ -69,6 +69,7 @@ var SceneParams = Object.freeze({
 });
 
 var SceneState = {
+  vrEnabled: false,
   isAnimating: true,
   stopAnimationRequest: false,
   lastTime: Date.now(),
@@ -119,6 +120,8 @@ var TextParams = Object.freeze({
   levelTimeout: 2000,
   gameStartX: -0.64,
   gameSize: 0.17,
+  dojoStartX: -0.50,
+  dojoSize: 0.2,
   gameTimeout: 3000,
 });
 
@@ -176,6 +179,11 @@ function initScene() {
   };
   window.addEventListener('resize', onResize, false);
 
+  // Virtual Reality rendering and input.
+  // VREffect falls back to non-VR mode if browser not VR-enabled.
+  // VRControls handles HMD orientation and positional tracking.
+  vrControls = new THREE.VRControls(camera);
+  vrEffect = new THREE.VREffect(renderer);
 
   var light = new THREE.PointLight(0xffffff, 1, 1000);
   scene.add(light);
@@ -218,6 +226,12 @@ function createHomeScreen() {
   GameState.ballGroup.add(ball);
   scene.add(GameState.ballGroup);
 
+  var text = createTextObject("Rift Dojo",
+                              TextParams.dojoStartX,
+                              TextParams.dojoSize, null);
+
+  // Add to ballGroup so it will be removed when the scene is cleared.
+  GameState.ballGroup.add(text);
 }
 
 function createLevel(level) {
@@ -280,11 +294,17 @@ function createTextObject(text, startX, size, timeout) {
   var textMat = new THREE.MeshBasicMaterial({color: TextParams.color });
   var text = new THREE.Mesh(textGeo, textMat);
   text.position.fromArray( [startX, TextParams.startY, TextParams.startZ] );
-  scene.add(text);
 
-  setTimeout( function() {
-    scene.remove(text); 
-  }, timeout);
+  if (timeout) {
+    // Remove the text after timeout milliseconds.
+    scene.add(text);
+    setTimeout( function() {
+      scene.remove(text); 
+    }, timeout);
+  }
+
+  // If no timeout, up to the caller to insert/remove in scene.
+  return text;
 }
 
 function createSkyBox() {
@@ -309,16 +329,20 @@ function createSkyBox() {
 
 }
 
-function initVR() {
-
-  vrControls = new THREE.VRControls(camera);
-  vrEffect = new THREE.VREffect(renderer);
+function initLeap() {
+  // Setup the Leap Motion Controller.
 
   var options = {}; // none for now
   Leap.loop(options, onLeapFrame);
-  Leap.loopController.use('transform', { vr: true, effectiveParent: camera });
+
+  // These two already included in plugs lib but be explicit.
   Leap.loopController.use('handHold');  // for hand.data
   Leap.loopController.use('handEntry');  // for onHandEntry, onHandLost
+
+  Leap.loopController.use('transform', { 
+    vr: true,
+    effectiveParent: camera 
+  });
 
   switch (SceneParams.handModel) {
 
@@ -406,7 +430,6 @@ function updateGameState() {
     // Game Over, return to the home screen.
     GameParams.soundGameOver.play();
     clearLevel();
-    console.log("writing GAME OVER");
     createTextObject("GAME OVER",
                      TextParams.gameStartX,
                      TextParams.gameSize,
@@ -622,9 +645,18 @@ function render() {
 
 function main() {
 
+  if (navigator.getVRDevices) {
+    SceneState.vrEnabled = true;
+    console.log("VR-enabled browser detected");
+  } else {
+    SceneState.vrEnabled = false;
+    console.log("Browser is not VR-enabled");
+  }
+
   initScene()
-  initVR();
+  initLeap();
   animate(); 
+
 }
 window.addEventListener("load", main);
 
