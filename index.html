@@ -489,11 +489,8 @@ function checkHandPosition() {
 
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
-      var hitTolerance = SceneState.vrEnabled ?
-                         GameParams.hitTolerance :
-                         GameParams.hitToleranceNoVR;
 
-      if (distance < ballRadius + hitTolerance) {
+      if (distance < ballRadius + GameParams.hitTolerance) {
 
         // Hit!
         GameState.hitCount++;
