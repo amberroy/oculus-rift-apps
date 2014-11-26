@@ -55,8 +55,6 @@
 
 var DEBUG = true;
 var frameCount = 0;
-var stopAnimation = false;
-var stopAnimationRequest = false;
 var ZERO_VECTOR3 = new THREE.Vector3(0,0,0);
 
 var vrControls, vrEffect;
@@ -67,6 +65,11 @@ var SceneParams = Object.freeze({
   skyBoxHeight: 8,
   skyBoxDepth: 18,
 });
+
+var SceneState = {
+  isAnimating: true,
+  stopAnimationRequest: false,
+}
 
 var GameParams = Object.freeze({
   ballRadius: 0.04,
@@ -199,9 +202,12 @@ function createHomeScreen() {
   GameState.level = 0;
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
+  //var ballTexture = new THREE.ImageUtils.loadTexture("images/yinyang.png")
+  //var ballMat = new THREE.MeshPhongMaterial({map: ballTexture});  
   var ballMat = new THREE.MeshPhongMaterial({color: GameParams.ballColor});  
   var ball = new THREE.Mesh(ballGeo, ballMat);
   ball.position.set(0, GameParams.homeStartY, GameParams.homeStartZ);
+  //ball.rotateOnAxis( new THREE.Vector3(0,1,0), ROTATE_ANGLE);
 
   ball.ballState = Object.create(BallState);
   GameState.ballObjects.push(ball);
@@ -330,12 +336,12 @@ function onKeyPress(event) {
     console.log("keypress", event.which);
     if (event.which === ' '.charCodeAt(0)) {
       // Pause/play animaiton on space bar.
-      if (stopAnimation) {
-        console.log("Animation PLAYING");
-        stopAnimation = false;
-      } else {
-        stopAnimationRequest = true;
+      if (SceneState.isAnimating) {
+        SceneState.stopAnimationRequest = true;
         console.log("Animation PAUSED");
+      } else {
+        console.log("Animation PLAYING");
+        SceneState.isAnimating = true;
       }
     }
   }
@@ -349,15 +355,15 @@ function updateGameState() {
 
   if (GameState.gameOver) {
     // Game Over, return to the home screen.
+    GameParams.soundGameOver.play();
+    clearLevel();
+    console.log("writing GAME OVER");
     createTextObject("GAME OVER",
                      TextParams.gameStartX,
                      TextParams.gameSize,
                      TextParams.gameTimeout);
-    stopAnimation = true;
-    GameParams.soundGameOver.play();
-    clearLevel();
     setTimeout( function() {
-      stopAnimation = false;
+      SceneState.isAnimating = true;
       GameState.livesLeft = GameParams.playerLives;
       createHomeScreen();
     }, TextParams.gameTimeout);
@@ -459,7 +465,7 @@ function updateBallPosition() {
         // Impact!  
         impactEffect(ball);
         ball.ballState.isInPlay = false;
-        stopAnimation = true;
+        SceneState.stopAnimationRequest = true;
         GameState.livesLeft--;
         GameParams.soundHitPlayer.play();
         setTimeout(function () {
@@ -468,7 +474,7 @@ function updateBallPosition() {
           } else {
             GameState.isPlayerHit = true;
           }
-          stopAnimation = false;
+          SceneState.isAnimating = true;
         }, GameParams.missedEffectMillis);
       } else {
         // Ball passed player, stop it when out of arms reach.
@@ -504,16 +510,7 @@ function impactEffect(ball) {
 }
 
 
-function render() {
-  if (stopAnimation || stopAnimationRequest) {
-    if (stopAnimationRequest) {
-      logDebugInfo();
-      stopAnimation = true;
-      stopAnimationRequest = false;
-    }
-    requestAnimationFrame(render);
-    return;
-  }
+function update() {
   frameCount++;
 
   updateGameState();
@@ -530,20 +527,36 @@ function render() {
   camera.position.set(cameraPosition.x + (GameState.headPosition.x - lastHeadPosition.x),
                       cameraPosition.y + (GameState.headPosition.y - lastHeadPosition.y),
                       cameraPosition.z + (GameState.headPosition.z - lastHeadPosition.z));
-  vrEffect.render(scene, camera);  
 
-  requestAnimationFrame(render);
 }
 
 function logDebugInfo() {
   // Nothing for now.
 }
 
+function animate() { 
+
+  requestAnimationFrame(animate);
+
+  if (SceneState.stopAnimationRequest) {
+    logDebugInfo();
+    SceneState.isAnimating = false;
+    SceneState.stopAnimationRequest = false;
+  }
+
+  if (SceneState.isAnimating) {
+    vrEffect.render(scene, camera); 
+    update();
+  }
+
+}
+
 function main() {
 
   initScene()
   initVR();
-  render();
+  //render(); // XXX
+  animate();  // XXX
 }
 window.addEventListener("load", main);
 
