@@ -39,7 +39,6 @@
     <script src="js/leap-0.6.3.min.js"></script> 
     <script src="js/leap-plugins-0.1.9.js"></script> 
     <script src="js/leap.rigged-hand-0.1.5.min.js"></script>
-    <script src="js/leap.transform.js"></script>
 
     <!-- VR scripts from the THREE.js repo, VREffect modified slightly. -->
     <script src="js/VRControls.js"></script>
@@ -81,24 +80,28 @@ var GameParams = Object.freeze({
   ballRadius: 0.04,
   ballStartX: 0.0,
   ballStartY: 0.03,
+  ballStartYNoVR: 0.0,
   ballStartZ: -3.0,
-  ballRangeX: 0.3,    // 0.3
-  ballRangeY: 0.2,    // 0.2
+  ballRangeX: 0.3,      // 0.3
+  ballRangeY: 0.2,      // 0.2
+  ballRangeXNoVR: 0.2,
+  ballRangeYNoVR: 0.15,
   ballIntervalZ: 1.0,
   ballStopZ: 1.5,
   ballSpeedStart: 0.010,
   ballSpeedInc: 0.2,
   hitTolerance: 0.01,
+  hitToleranceNoVR: 0.01,
   grabStrength: 0.5,
-  ballColor: 0xcc0000,// red
-  ballCount: 25,      // 25
+  ballColor: 0xcc0000,  // red
+  ballCount: 25,        // 25
   homeCount: 1,
   playerBufferZ: 0.1,
   playerWidth: 0.5,
   playerHeightUp: 0.2,
   playerHeightDown: 2.0,
   missedEffectMillis: 500,
-  playerLives: 3, // 3
+  playerLives: 3,       // 3
   homeStartY: -0.05,
   homeStartZ: -0.4,
   soundHitBall: new Audio("sounds/hard-pop.wav"),
@@ -275,11 +278,17 @@ function createBallObject(color, index) {
 }
 
 function randomBallPosition(ball, index) {
-  var randX = Math.random() * (GameParams.ballRangeX*2) - GameParams.ballRangeX;
-  var randY = Math.random() * (GameParams.ballRangeY*2) - GameParams.ballRangeY;
+  var ballRangeX = SceneState.vrEnabled ?
+               GameParams.ballRangeX : GameParams.ballRangeXNoVR;
+  var ballRangeY = SceneState.vrEnabled ?
+               GameParams.ballRangeY : GameParams.ballRangeYNoVR;
+  var randX = Math.random() * (ballRangeX*2) - ballRangeX;
+  var randY = Math.random() * (ballRangeY*2) - ballRangeY;
 
+  var ballStartY = SceneState.vrEnabled ? 
+                   GameParams.ballStartY : GameParams.ballStartYNoVR;
   var ballX = GameParams.ballStartX + randX;
-  var ballY = GameParams.ballStartY + randY;
+  var ballY = ballStartY + randY;
   var ballZ = GameParams.ballStartZ + (GameParams.ballIntervalZ * index * -1);
   ball.position.fromArray([ballX, ballY, ballZ]);
 
@@ -340,11 +349,14 @@ function initLeap() {
   Leap.loopController.use('handHold');  // for hand.data
   Leap.loopController.use('handEntry');  // for onHandEntry, onHandLost
 
-  // Use my custom transform that supports VR scene with desktop leap.
-  Leap.loopController.use('mytransform', {
-    vr: true,
-    hmd: SceneState.vrEnabled,
+  // Scale to meters, if VR browser then assume HMD mounted leap.
+  Leap.loopController.use('transform', {
+    vr: SceneState.vrEnabled,
+    scale: SceneState.vrEnabled ? 0.001 : 0.001,
     effectiveParent: camera,
+    position: SceneState.vrEnabled ? 
+              new THREE.Vector3(0, 0, -0.08) :        // VR default
+              new THREE.Vector3(0, -0.25, -0.37),     // for desktop
   });
 
   switch (SceneParams.handModel) {
@@ -365,10 +377,8 @@ function initLeap() {
       // Plugin controls render loop, calls requestAnimationFrame then renderFn.
       renderFn: render, 
 
-      // Default y = -10in (0.25m), but when mounted on HMD we want it at zero.
-      offset: SceneState.vrEnabled ? new THREE.Vector3(0, 0, 0) : 
-                                     new THREE.Vector3(0, -0.25, 0),
-
+      // Default y = -10in (0.25m) but when mounted on HMD we want it at zero.
+      offset: new THREE.Vector3(0, 0, 0),
 
       // Any valid Three.js material options are valid here.
       materialOptions: {
@@ -486,7 +496,12 @@ function checkHandPosition() {
 
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
-      if (distance < ballRadius + GameParams.hitTolerance) {
+      var hitTolerance = SceneState.vrEnabled ?
+                         GameParams.hitTolerance :
+                         GameParams.hitToleranceNoVR;
+
+      if (distance < ballRadius + hitTolerance) {
+
         // Hit!
         GameState.hitCount++;
         if (GameState.hitCount === GameParams.ballCount) {
