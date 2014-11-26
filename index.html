@@ -29,22 +29,21 @@
     </style>
 
     <!-- Use local libs for faster load times during development. 
-      <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js"></script>
       <script src="http://mrdoob.github.com/three.js/examples/fonts/helvetiker_regular.typeface.js"></script>
+      <script src="//js.leapmotion.com/leap-0.6.3.min.js"></script>
+      <script src="//js.leapmotion.com/leap-plugins-0.1.9.min.js"></script>
+      <script src="//js.leapmotion.com/leap.rigged-hand-0.1.5.min.js"></script>
     -->
     <script src="js/three.min.js"></script>
     <script src="js/helvetiker_regular.typeface.js"></script>
+    <script src="js/leap-0.6.3.min.js"></script> 
+    <script src="js/leap-plugins-0.1.9.js"></script> 
+    <script src="js/leap.rigged-hand-0.1.5.min.js"></script>
 
     <!-- VR scripts from the THREE.js repo, VREffect modified slightly. -->
     <script src="js/VRControls.js"></script>
     <script src="js/VREffect.js"></script>
 
-    <!--
-      <script src="//js.leapmotion.com/leap-0.6.3.min.js"></script>
-      <script src="//js.leapmotion.com/leap-plugins-0.1.9.min.js"></script>
-    -->
-    <script src="js/leap-0.6.3.min.js"></script> 
-    <script src="js/leap-plugins-0.1.9.js"></script> 
 
 </head>
 
@@ -65,6 +64,8 @@ var SceneParams = Object.freeze({
   skyBoxWidth: 18,
   skyBoxHeight: 8,
   skyBoxDepth: 18,
+  handModel: "riggedHand",
+  handColor: 0xC0C0C0,
 });
 
 var SceneState = {
@@ -84,8 +85,8 @@ var GameParams = Object.freeze({
   ballIntervalZ: 1.0,
   ballStopZ: 1.5,
   ballSpeedStart: 0.010,
-  ballSpeedInc: 0.1,
-  hitTolerance: 0.0,
+  ballSpeedInc: 0.2,
+  hitTolerance: 0.01,
   grabStrength: 0.5,
   ballColor: 0xcc0000,// red
   ballCount: 25,      // 25
@@ -316,9 +317,46 @@ function initVR() {
   var options = {}; // none for now
   Leap.loop(options, onLeapFrame);
   Leap.loopController.use('transform', { vr: true, effectiveParent: camera });
-  Leap.loopController.use('boneHand', { scene: scene, arm: true });
-  // Plugins handHolding and handEntry already included with leap plugins.
-  // Leap tracks hands up to about 50 cm (20 inches) in front of sensor.
+  Leap.loopController.use('handHold');  // for hand.data
+  Leap.loopController.use('handEntry');  // for onHandEntry, onHandLost
+
+  switch (SceneParams.handModel) {
+
+  case 'boneHand':
+    Leap.loopController.use('boneHand', { scene: scene, arm: true });
+    break;
+
+  case 'riggedHand':
+    // rigged-hand depends on hand-hold and hand-entry plugins
+
+    Leap.loopController.use('riggedHand', { 
+
+      parent: scene,
+      renderer: renderer,
+      camera: camera,
+
+      // Plugin controls render loop, calls requestAnimationFrame then renderFn.
+      renderFn: render, 
+
+      // Default y = -10, but when mounted on HMD we want it at zero.
+      offset: new THREE.Vector3(0, 0, 0),
+
+      // Any valid Three.js material options are valid here.
+      materialOptions: {
+        color: SceneParams.handColor,
+      },
+
+      // Add warning msg to page if no WebGL, uses threejs Detector.js
+      checkWebGL: true,
+
+      // Use default settings for scale, positionScale, geometryOptions
+      // Note: Leap tracks hands up to about 50 cm (20 inches) in front of sensor.
+    });
+    break;
+
+  default:
+    console.log("Unrecognized handModel", SceneParams.handModel);
+  }
 
 }
 
@@ -559,8 +597,15 @@ function logDebugInfo() {
 
 function animate() { 
 
-  requestAnimationFrame(animate);
+  if (!SceneParams.handModel === 'riggedHand') {
+    // If using rigged hand, plugin runs render loop for us.
 
+    requestAnimationFrame(animate);
+    render();
+  }
+}
+
+function render() {
 
   if (SceneState.stopAnimationRequest) {
     logDebugInfo();
@@ -579,7 +624,7 @@ function main() {
 
   initScene()
   initVR();
-  animate();
+  animate(); 
 }
 window.addEventListener("load", main);
 
