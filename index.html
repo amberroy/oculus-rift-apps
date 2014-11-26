@@ -13,6 +13,7 @@
   monochord-03.wav - https://www.freesound.org/people/Jagadamba/sounds/253765/
   gong.wav - https://www.freesound.org/people/SuperDaveOsbourne/sounds/63643/
   flute.wav - https://www.freesound.org/people/Soughtaftersounds/sounds/145447/
+  low-bing.wav - https://www.freesound.org/people/nickgoa/sounds/186836/
 -->
   <head>
     <title>Rift Dojo - Leap Motion 3D Game Jam</title>
@@ -80,8 +81,8 @@ var GameParams = Object.freeze({
   ballSpeedInc: 0.1,
   hitTolerance: 0.0,
   grabStrength: 0.5,
-  ballColor: 0xcc0000,  // red
-  ballCount: 25,
+  ballColor: 0xcc0000,// red
+  ballCount: 25,      // 25
   playerBufferZ: 0.1,
   playerWidth: 0.5,
   playerHeightUp: 0.2,
@@ -94,6 +95,7 @@ var GameParams = Object.freeze({
   soundGameStart: new Audio("sounds/flute.wav"),
   soundNextLevel: new Audio("sounds/koto-hit.wav"),
   soundRestartLevel: new Audio("sounds/monochord-03.wav"),
+  soundLastBall: new Audio("sounds/low-bing.wav"),
 });
 
 var TextParams = Object.freeze({
@@ -365,11 +367,15 @@ function checkHandPosition() {
       // Simple collision detection algorithm.
       var distance = palmPosition.distanceTo(ball.position);
       if (distance < ballRadius + GameParams.hitTolerance) {
-        // Hit!
         if (DEBUG) console.log("Hand["+i+"] HIT Ball["+j+"] ", ball.position);
+        // Hit!
         GameState.hitCount++;
+        if (GameState.hitCount === GameParams.ballCount) {
+          GameParams.soundLastBall.play();
+        } else {
+          GameParams.soundHitBall.play();
+        }
         ball.ballState.isInPlay = false;
-        GameParams.soundHitBall.play();
 
         // Leave ball in the scene for now, but make invisible.
         ball.visible = false;
