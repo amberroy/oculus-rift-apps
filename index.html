@@ -66,16 +66,19 @@ var SceneParams = Object.freeze({
   skyBoxWidth: 18,
   skyBoxHeight: 8,
   skyBoxDepth: 18,
+  skyBoxImages: ["images/white-dojo-xpos.png", "images/white-dojo-xneg.png", 
+                 "images/white-dojo-ypos.png", "images/white-dojo-yneg.png", 
+                 "images/white-dojo-zpos.png", "images/white-dojo-zneg.png"],
   handModel: "riggedHand",
   handColor: 0xC0C0C0,
 });
 
 var SceneState = {
   vrEnabled: false,
+  webAudio: false,
   isAnimating: true,
   stopAnimationRequest: false,
   lastTime: Date.now(),
-  spinDuration: 5000,
 }
 
 var GameParams = Object.freeze({
@@ -101,6 +104,8 @@ var GameParams = Object.freeze({
   playerLives: 3,       // 3
   homeStartY: -0.05,
   homeStartZ: -0.4,
+  homeBallImage: "images/yinyang.png",
+  spinDuration: 5000,
   soundHitBall: new Audio("sounds/hard-pop.wav"),
   soundHitPlayer: new Audio("sounds/flapping-thud.wav"),
   soundGameOver: new Audio("sounds/gong.wav"),
@@ -214,7 +219,7 @@ function createHomeScreen() {
   GameState.level = 0;
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
-  var ballTexture = new THREE.ImageUtils.loadTexture("images/yinyang.png")
+  var ballTexture = new THREE.ImageUtils.loadTexture(GameParams.homeBallImage);
   var ballMat = new THREE.MeshPhongMaterial({map: ballTexture});  
   var ball = new THREE.Mesh(ballGeo, ballMat);
   ball.position.set(0, GameParams.homeStartY, GameParams.homeStartZ);
@@ -314,16 +319,13 @@ function createTextObject(text, startX, size, timeout) {
 
 function createSkyBox() {
   
-  var imagePrefix = "images/white-dojo-";
-  var directions  = ["xpos", "xneg", "ypos", "yneg", "zpos", "zneg"];
-  var imageSuffix = ".png";
   var skyGeometry = new THREE.BoxGeometry(SceneParams.skyBoxWidth,
                                           SceneParams.skyBoxHeight, 
                                           SceneParams.skyBoxDepth);
-  
   var materialArray = [];
   for (var i = 0; i < 6; i++)
-    materialArray.push( new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture( imagePrefix + directions[i] + imageSuffix ),
+    materialArray.push( new THREE.MeshBasicMaterial({
+      map: THREE.ImageUtils.loadTexture(SceneParams.skyBoxImages[i]),
       side: THREE.BackSide
     }));
   var skyMaterial = new THREE.MeshFaceMaterial( materialArray );
@@ -617,7 +619,7 @@ function updateHomeScreen() {
   SceneState.lastTime = now;
 
   // One full spin every spinDuration milliseconds, angle in radians.
-  var fractionOfCircle = timeDiff / SceneState.spinDuration;
+  var fractionOfCircle = timeDiff / GameParams.spinDuration;
   var angle = Math.PI * 2 * fractionOfCircle;
 
   for (var i=0; i < GameState.ballObjects.length; i++) {
