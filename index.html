@@ -58,6 +58,9 @@ var DEBUG = true;
 var frameCount = 0;
 var ZERO_VECTOR3 = new THREE.Vector3(0,0,0);
 
+var isMac = navigator.platform.toUpperCase().indexOf('MAC')>=0
+var isIOS = navigator.platform.match(/(iPhone|iPod|iPad)/i)?true:false;;
+
 var vrControls, vrEffect;
 var scene, camera, renderer;
 
@@ -65,9 +68,11 @@ var SceneParams = Object.freeze({
   skyBoxWidth: 18,
   skyBoxHeight: 8,
   skyBoxDepth: 18,
-  handModel: "riggedHand",
+  // Rigged hand plugin somehow broken on Mac OSX.
+  handModel: isMac ? "boneHand" : "riggedHand",
   handColor: 0xC0C0C0,
 });
+console.log("handModel=", SceneParams.handModel)
 
 var SceneState = {
   vrEnabled: false,
@@ -631,7 +636,7 @@ function logDebugInfo() {
 
 function animate() { 
 
-  if (!SceneParams.handModel === 'riggedHand') {
+  if (SceneParams.handModel !== 'riggedHand') {
     // If using rigged hand, plugin runs render loop for us.
 
     requestAnimationFrame(animate);
