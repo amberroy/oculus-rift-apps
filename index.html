@@ -91,7 +91,7 @@ var GameParams = Object.freeze({
   ballRangeNoVR: [0.2, 0.15],
   ballIntervalZ: 1.0,
   ballStopZ: 1.5,
-  ballSpeedStart: 0.010,
+  ballSpeedStart: 0.007,
   ballSpeedInc: 0.2,
   hitTolerance: 0.01,
   grabStrength: 0.5,
@@ -128,10 +128,15 @@ var TextParams = Object.freeze({
   messageSize: 0.25,
 
   levelSize: 0.20,
-  levelTimeout: 2000,
+  levelTimeout: 5000,
   gameSize: 0.17,
-  gameTimeout: 3000,
+  gameTimeout: 5000,
   dojoSize: 0.20,
+
+  levelMessages: [
+    "There is no level zero",
+    "Block objects using palm",
+  ],
 });
 
 var GameState = {
@@ -270,6 +275,13 @@ function createLevel(level) {
                    TextParams.signStartY,
                    TextParams.levelSize,
                    TextParams.levelTimeout);
+
+  if (TextParams.levelMessages[level]) {
+    createTextObject(TextParams.levelMessages[level],
+                     TextParams.messageStartY,
+                     TextParams.messageSize,
+                     TextParams.levelTimeout);
+  }
 
   setTimeout( function() {
     // Wait a bit before adding objects to the scene.
