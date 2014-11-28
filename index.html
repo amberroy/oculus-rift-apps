@@ -69,12 +69,14 @@ var SceneParams = Object.freeze({
   skyBoxImages: ["images/white-dojo-xpos.png", "images/white-dojo-xneg.png", 
                  "images/white-dojo-ypos.png", "images/white-dojo-yneg.png", 
                  "images/white-dojo-zpos.png", "images/white-dojo-zneg.png"],
-  handModel: "riggedHand",
   handColor: 0xC0C0C0,
+  detectLeapTimeout: 500,
 });
 
 var SceneState = {
   vrEnabled: false,
+  leapReady: false,
+  handModel: null,
   webAudio: false,
   isAnimating: true,
   stopAnimationRequest: false,
@@ -336,6 +338,7 @@ function createSkyBox() {
 
 }
 
+
 function initLeap() {
   // Setup the Leap Motion Controller.
 
@@ -355,8 +358,12 @@ function initLeap() {
               new THREE.Vector3(0, 0, -0.08) :        // VR default
               new THREE.Vector3(0, -0.25, -0.25),     // for desktop
   });
+}
 
-  switch (SceneParams.handModel) {
+
+function initHandModel() {
+
+  switch (SceneState.handModel) {
 
   case 'boneHand':
     Leap.loopController.use('boneHand', { scene: scene, arm: true });
@@ -397,8 +404,15 @@ function initLeap() {
 }
 
 function onLeapFrame(frame) {
+
+  if (!SceneState.leapReady) {
+    // Leap "ready" event triggered even when controller not connected!
+    // Instead use presense of frame data to detect the leap controller.
+    SceneState.leapReady = true;
+  }
   GameState.leapFrame = frame;
   GameState.handObjects = frame.hands;
+
 }
 
 function onKeyPress(event) {
@@ -671,7 +685,24 @@ function main() {
 
   initScene()
   initLeap();
-  animate(); 
+
+  // Wait to animate until we check if Leap Motion Controller connected.
+  setTimeout (function() {
+
+    if (SceneState.leapReady) {
+      // Rigged hand is more realistic than bone hand (unless you're a skeleton)
+      // but using riggedHand model without leap doesn't work (black screen).
+      SceneState.handModel = "riggedHand";
+      console.log("Leap Motion Controller detected.");
+    } else {
+      SceneState.handModel = "boneHand";
+      console.log("Leap Motion Controller not connected.");
+    }
+
+    initHandModel();
+    animate();
+
+  }, SceneParams.detectLeapTimeout);
 
 }
 window.addEventListener("load", main);
