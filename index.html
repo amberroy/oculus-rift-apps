@@ -119,7 +119,7 @@ var GameParams = Object.freeze({
 
 var TextParams = Object.freeze({
   color: 0x000000,
-  wallStartZ: -1 * SceneParams.skyBoxDepth/2,
+  textStartZ: -1 * SceneParams.skyBoxDepth/2,
   font: "helvetiker",
   height: 0.001,
 
@@ -127,16 +127,11 @@ var TextParams = Object.freeze({
   messageStartY: 1.85,
   messageSize: 0.25,
 
-  levelStartX: -0.40,
   levelSize: 0.20,
   levelTimeout: 2000,
-
-  gameStartX: -0.64,
   gameSize: 0.17,
   gameTimeout: 3000,
-
-  dojoStartX: -0.50,
-  dojoSize: 0.2,
+  dojoSize: 0.20,
 });
 
 var GameState = {
@@ -203,9 +198,6 @@ function initScene() {
   scene.add(light);
 
   createSkyBox();
-
-  GameParams.soundGameStart.play();
-  createHomeScreen();
 }
 
 function clearLevel() {
@@ -242,20 +234,24 @@ function createHomeScreen() {
 
   var textObj = createTextObject(
     "Rift Dojo",
-    TextParams.dojoStartX,
     TextParams.signStartY,
-    TextParams.wallStartZ,
     TextParams.dojoSize, null
   );
 
-  var message = "Hit the spinning ball to begin";
+  var message;
+  if (!SceneState.leapReady) {
+    message = "Leap Motion Controller required";
+  } else if (!SceneState.vrEnabled) {
+    message = "VR-enabled browser requried";
+  } else {
+    message = "Hit the spinning ball to begin";
+  }
   var messageObj = createTextObject(
     message,
-    messageToStartX(message),
     TextParams.messageStartY,
-    TextParams.wallStartZ,
     TextParams.messageSize, null
   );
+  //centerTextObj(messageObj);
 
   // Add to ballGroup so it will be removed when the scene is cleared.
   GameState.ballGroup.add(textObj);
@@ -271,9 +267,7 @@ function createLevel(level) {
                         (GameParams.ballSpeedInc * (GameState.level-1)));
  
   createTextObject("Level " + GameState.level,
-                   TextParams.levelStartX,
                    TextParams.signStartY,
-                   TextParams.wallStartZ,
                    TextParams.levelSize,
                    TextParams.levelTimeout);
 
@@ -318,7 +312,8 @@ function randomBallPosition(ball, index) {
 
 }
 
-function createTextObject(text, startX, startY, startZ, size, timeout) {
+function createTextObject(text, startY, size, timeout) {
+
   var params = { 
     font: TextParams.font,
     size: size,
@@ -326,24 +321,36 @@ function createTextObject(text, startX, startY, startZ, size, timeout) {
   };
   var textGeo = new THREE.TextGeometry(text, params);
   var textMat = new THREE.MeshBasicMaterial({color: TextParams.color });
-  var text = new THREE.Mesh(textGeo, textMat);
-  text.position.fromArray( [startX, startY, startZ] );
+  var textObj = new THREE.Mesh(textGeo, textMat);
+  textObj.position.fromArray([
+    0,  // we reset x to center text below
+    startY,
+    TextParams.textStartZ
+  ]);
+
+  // Center text: Find center of bounding box, move left by that amount.
+  var box = new THREE.Box3().setFromObject( textObj );
+  var centerX = box.center().x;
+  textObj.position.x = centerX * -1;
+
 
   if (timeout) {
     // Remove the text after timeout milliseconds.
-    scene.add(text);
+    scene.add(textObj);
     setTimeout( function() {
-      scene.remove(text); 
+      scene.remove(textObj); 
     }, timeout);
   }
 
   // If no timeout, up to the caller to insert/remove in scene.
-  return text;
+  return textObj;
 }
 
-function messageToStartX(text) {
-  // For now just use the number of characters to estimate.
-  return (text.length / 7) / 2 * -1;
+function centerTextObj(textObj) {
+  // Find center of bounding box, move left by that amount.
+  var box = new THREE.Box3().setFromObject( textObj );
+  var centerX = box.center().x;
+  textObj.position.x = centerX * -1;
 }
 
 function createSkyBox() {
@@ -484,9 +491,7 @@ function updateGameState() {
     GameParams.soundGameOver.play();
     clearLevel();
     createTextObject("GAME OVER",
-                     TextParams.gameStartX,
                      TextParams.signStartY,
-                     TextParams.wallStartZ,
                      TextParams.gameSize,
                      TextParams.gameTimeout);
     setTimeout( function() {
@@ -729,6 +734,8 @@ function main() {
     }
 
     initHandModel();
+    GameParams.soundGameStart.play();
+    createHomeScreen();
     animate();
 
   }, SceneParams.detectLeapTimeout);
