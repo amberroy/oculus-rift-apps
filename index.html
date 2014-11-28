@@ -119,18 +119,24 @@ var GameParams = Object.freeze({
 
 var TextParams = Object.freeze({
   color: 0x000000,
-  startY: 1.1,
-  startZ: -1 * SceneParams.skyBoxDepth/2,
+  wallStartZ: -1 * SceneParams.skyBoxDepth/2,
   font: "helvetiker",
   height: 0.001,
+
+  signStartY: 1.1,
+  messageStartY: 1.85,
+  messageSize: 0.25,
+
   levelStartX: -0.40,
   levelSize: 0.20,
   levelTimeout: 2000,
+
   gameStartX: -0.64,
   gameSize: 0.17,
+  gameTimeout: 3000,
+
   dojoStartX: -0.50,
   dojoSize: 0.2,
-  gameTimeout: 3000,
 });
 
 var GameState = {
@@ -234,12 +240,26 @@ function createHomeScreen() {
   GameState.ballGroup.add(ball);
   scene.add(GameState.ballGroup);
 
-  var text = createTextObject("Rift Dojo",
-                              TextParams.dojoStartX,
-                              TextParams.dojoSize, null);
+  var textObj = createTextObject(
+    "Rift Dojo",
+    TextParams.dojoStartX,
+    TextParams.signStartY,
+    TextParams.wallStartZ,
+    TextParams.dojoSize, null
+  );
+
+  var message = "Hit the spinning ball to begin";
+  var messageObj = createTextObject(
+    message,
+    messageToStartX(message),
+    TextParams.messageStartY,
+    TextParams.wallStartZ,
+    TextParams.messageSize, null
+  );
 
   // Add to ballGroup so it will be removed when the scene is cleared.
-  GameState.ballGroup.add(text);
+  GameState.ballGroup.add(textObj);
+  GameState.ballGroup.add(messageObj);
 }
 
 function createLevel(level) {
@@ -252,6 +272,8 @@ function createLevel(level) {
  
   createTextObject("Level " + GameState.level,
                    TextParams.levelStartX,
+                   TextParams.signStartY,
+                   TextParams.wallStartZ,
                    TextParams.levelSize,
                    TextParams.levelTimeout);
 
@@ -296,7 +318,7 @@ function randomBallPosition(ball, index) {
 
 }
 
-function createTextObject(text, startX, size, timeout) {
+function createTextObject(text, startX, startY, startZ, size, timeout) {
   var params = { 
     font: TextParams.font,
     size: size,
@@ -305,7 +327,7 @@ function createTextObject(text, startX, size, timeout) {
   var textGeo = new THREE.TextGeometry(text, params);
   var textMat = new THREE.MeshBasicMaterial({color: TextParams.color });
   var text = new THREE.Mesh(textGeo, textMat);
-  text.position.fromArray( [startX, TextParams.startY, TextParams.startZ] );
+  text.position.fromArray( [startX, startY, startZ] );
 
   if (timeout) {
     // Remove the text after timeout milliseconds.
@@ -317,6 +339,11 @@ function createTextObject(text, startX, size, timeout) {
 
   // If no timeout, up to the caller to insert/remove in scene.
   return text;
+}
+
+function messageToStartX(text) {
+  // For now just use the number of characters to estimate.
+  return (text.length / 7) / 2 * -1;
 }
 
 function createSkyBox() {
@@ -458,6 +485,8 @@ function updateGameState() {
     clearLevel();
     createTextObject("GAME OVER",
                      TextParams.gameStartX,
+                     TextParams.signStartY,
+                     TextParams.wallStartZ,
                      TextParams.gameSize,
                      TextParams.gameTimeout);
     setTimeout( function() {
