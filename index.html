@@ -84,16 +84,22 @@ var SceneState = {
 }
 
 var GameParams = Object.freeze({
+  initialLevel: 4,      // 1
   ballRadius: 0.04,
-  ballStartVR: [0.0, 0.03, -3.0],
+  //ballStartVR: [0.0, 0.03, -3.0],
+  ballStartVR: [0.0, -0.08, -9.0],
   ballStartNoVR: [ 0.0, -0.01, -3.0],
-  ballRangeVR: [0.3, 0.2],
+  //ballRangeVR: [0.3, 0.2],
+  //ballRangeVR: [0.25, 0.2],
+  ballRangeVR: [0.2, 0.2],
   ballRangeNoVR: [0.2, 0.15],
-  ballIntervalZ: 1.0,
+  ballIntervalStart: 1.0,
+  ballIntervalInc: 1.10,
   ballStopZ: 1.5,
-  ballSpeedStart: 0.007,
-  ballSpeedInc: 0.2,
-  hitTolerance: 0.01,
+  ballSpeedStart: 0.005,  // >0.006 is hard
+  ballSpeedInc: 1.05,
+  //hitTolerance: 0.015,
+  hitTolerance: 0.02,
   grabStrength: 0.5,
   ballColor: 0xcc0000,  // red
   ballCount: 25,        // 25
@@ -103,7 +109,7 @@ var GameParams = Object.freeze({
   playerHeightUp: 0.2,
   playerHeightDown: 2.0,
   missedEffectMillis: 500,
-  playerLives: 3,       // 3
+  playerLives: 5,       // 3
   homeStartY: -0.05,
   homeStartZ: -0.4,
   homeBallImage: "images/yinyang.png",
@@ -141,6 +147,7 @@ var TextParams = Object.freeze({
 
 var GameState = {
   level: 0,
+  levelBallCount: GameParams.ballCount,
   ballSpeed: 0,
   ballObjects: [],
   handObjects: [],
@@ -267,10 +274,16 @@ function createLevel(level) {
 
   clearLevel();
   GameState.level = level;
+  GameState.levelBallCount = 20 + (5 * level);  // NEW
 
-  GameState.ballSpeed = GameState.ballSpeed + (GameParams.ballSpeedStart *
-                        (GameParams.ballSpeedInc * (GameState.level-1)));
- 
+  var speed = GameParams.ballSpeedStart; 
+  for (var i=1; i < level; i++) {
+    // Do the loop every time in case we jump around between levels.
+    speed *= GameParams.ballSpeedInc;
+  }
+  GameState.ballSpeed = speed;
+  console.log("level/speed", level, GameState.ballSpeed);
+
   createTextObject("Level " + GameState.level,
                    TextParams.signStartY,
                    TextParams.levelSize,
@@ -282,24 +295,36 @@ function createLevel(level) {
                      TextParams.messageSize,
                      TextParams.levelTimeout);
   }
-
+// NEW BEGIN
   setTimeout( function() {
     // Wait a bit before adding objects to the scene.
-    for (var i=0; i < GameParams.ballCount; i++) {
-      createBallObject(GameParams.ballColor, i);
+    for (var i=0; i < GameState.levelBallCount; i++) {
+      createBallObject(GameParams.ballColor, i, level);
     }
     scene.add(GameState.ballGroup);
 
   }, TextParams.levelTimeout);
+// NEW END
+
+/*
+  setTimeout( function() {
+    // Wait a bit before adding objects to the scene.
+    for (var i=0; i < GameParams.ballCount; i++) {
+      createBallObject(GameParams.ballColor, i, level);
+    }
+    scene.add(GameState.ballGroup);
+
+  }, TextParams.levelTimeout);
+*/
 
 }
 
-function createBallObject(color, index) {
+function createBallObject(color, index, level) {
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
   var ballMat = new THREE.MeshPhongMaterial({color: color});  
   var ball = new THREE.Mesh(ballGeo, ballMat);
-  randomBallPosition(ball, index);
+  randomBallPosition(ball, index, level);
 
   ball.ballState = Object.create(BallState);
   ball.ballState.isInPlay = true;
@@ -309,7 +334,13 @@ function createBallObject(color, index) {
   return ball;
 }
 
-function randomBallPosition(ball, index) {
+function randomBallPosition(ball, index, level) {
+  var interval = GameParams.ballIntervalStart; 
+  for (var i=1; i < level; i++) {
+    // Do the loop every time in case we jump around between levels.
+    interval *= GameParams.ballIntervalInc;
+  }
+
   var ballRange = SceneState.vrEnabled ?
                   GameParams.ballRangeVR : GameParams.ballRangeNoVR;
   var randX = Math.random() * (ballRange[0]*2) - ballRange[0];
@@ -319,7 +350,7 @@ function randomBallPosition(ball, index) {
                   GameParams.ballStartVR : GameParams.ballStartNoVR;
   var ballX = ballStart[0] + randX;
   var ballY = ballStart[1] + randY;
-  var ballZ = ballStart[2] + (GameParams.ballIntervalZ * index * -1);
+  var ballZ = ballStart[2] + (interval * index * -1);
   ball.position.fromArray([ballX, ballY, ballZ]);
 
 }
@@ -515,14 +546,16 @@ function updateGameState() {
              GameState.hitCount === GameParams.homeCount) {
     // Exit the home screen and load first level.
     GameParams.soundGameStart.play();
-    createLevel(1);
+    createLevel(GameParams.initialLevel);
 
-  } else if (GameState.hitCount === GameParams.ballCount) {
+  //} else if (GameState.hitCount === GameParams.ballCount) { 
+  } else if (GameState.hitCount === GameState.levelBallCount) {   // NEW
     // Player hit all balls, advance to next level.
     GameParams.soundNextLevel.play();
     createLevel(GameState.level+1);
 
-  } else if (GameState.hitCount + GameState.missCount === GameParams.ballCount) {
+  //} else if (GameState.hitCount + GameState.missCount === GameParams.ballCount) {
+  } else if (GameState.hitCount + GameState.missCount === GameState.levelBallCount) { // NEW
     // End of level but not all balls hit, restart level.
     GameParams.soundRestartLevel.play();
     createLevel(GameState.level);
@@ -689,7 +722,7 @@ function updateHomeScreen() {
 }
 
 function logDebugInfo() {
-  // Nothing for now.
+  console.log("Game State:", GameState);
 }
 
 function animate() { 
