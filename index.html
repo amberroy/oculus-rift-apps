@@ -14,8 +14,8 @@
   monochord-03.wav - http://www.freesound.org/people/Jagadamba/sounds/253765/
   gong.wav - http://www.freesound.org/people/SuperDaveOsbourne/sounds/63643/
   flute.wav - http://www.freesound.org/people/Soughtaftersounds/sounds/145447/
-  low-bing.wav - http://www.freesound.org/people/nickgoa/sounds/186836/
   koto-shamisen-loop.wav - https://www.freesound.org/people/zagi2/sounds/222655/
+  low-bing.wav - http://www.freesound.org/people/nickgoa/sounds/186836/ (unused)
 -->
   <head>
     <title>Rift Dojo - Leap Motion 3D Game Jam</title>
@@ -119,7 +119,6 @@ var GameParams = Object.freeze({
   soundGameStart: new Audio("sounds/flute.wav"),
   soundNextLevel: new Audio("sounds/koto-hit.wav"),
   soundRestartLevel: new Audio("sounds/monochord-03.wav"),
-  soundLastBall: new Audio("sounds/low-bing.wav"),
   soundGameWon: new Audio("sounds/koto-shamisen-loop.wav"),
 });
 
@@ -152,7 +151,8 @@ var TextParams = Object.freeze({
 
 var GameState = {
   level: 0,
-  levelBallCount: GameParams.ballCount,
+  highestLevel: GameParams.initialLevel,
+  levelBallCount: GameParams.initialBallCount,
   ballSpeed: 0,
   ballObjects: [],
   handObjects: [],
@@ -279,11 +279,14 @@ function createLevel(level) {
 
   clearLevel();
   GameState.level = level;
+  if (GameState.highestLevel < level) {
+    GameState.highestLevel = level;
+  }
   GameState.levelBallCount = GameParams.initialBallCount +
                              (GameParams.ballCountInc * level - 1);
 
-  if (GameState.gameWon) {
-    // No stop() method so pause and rewind.
+  if (GameParams.soundGameWon.currentTime > 0) {
+    // End looping music. No stop() method so pause and rewind.
     GameParams.soundGameWon.pause();
     GameParams.soundGameWon.currentTime = 0.0;
   }
@@ -418,6 +421,7 @@ function createVictoryScreen() {
   GameState.gameWon = true;
   GameParams.soundGameWon.loop = true;
   GameParams.soundGameWon.play();
+
   clearLevel();
   createTextObject("YOU WON",
                    TextParams.signStartY,
@@ -565,14 +569,14 @@ function updateGameState() {
 
   } else if (GameState.level === 0 && 
              GameState.hitCount === GameParams.homeCount) {
-    // Exit the home screen and load first level.
+    // Exit the home screen and load highest level reached.
     GameParams.soundGameStart.play();
-    createLevel(GameParams.initialLevel);
+    createLevel(GameState.highestLevel);
 
   } else if (GameState.level === GameParams.finalLevel && 
              GameState.hitCount === GameState.levelBallCount) {
-    // Player cleared final level!
-    createVictoryScreen();
+    // Player cleared final level!  Only show victory screen first time.
+    GameState.gameWon ? createHomeScreen() : createVictoryScreen();
 
   } else if (GameState.hitCount === GameState.levelBallCount) {
     // Player hit all balls, advance to next level.
@@ -616,11 +620,7 @@ function checkHandPosition() {
 
         // Hit!
         GameState.hitCount++;
-        if (GameState.hitCount === GameParams.ballCount) {
-          GameParams.soundLastBall.play();
-        } else {
-          GameParams.soundHitBall.play();
-        }
+        GameParams.soundHitBall.play();
         ball.ballState.isInPlay = false;
 
         // Leave ball in the scene for now, but make invisible.
@@ -724,9 +724,11 @@ function update() {
     GameState.headPosition = ZERO_VECTOR3;
   }
   // Add any head movement (via positional tracking) to the camera position.
-  camera.position.set(cameraPosition.x + (GameState.headPosition.x - lastHeadPosition.x),
-                      cameraPosition.y + (GameState.headPosition.y - lastHeadPosition.y),
-                      cameraPosition.z + (GameState.headPosition.z - lastHeadPosition.z));
+  camera.position.set(
+    cameraPosition.x + (GameState.headPosition.x - lastHeadPosition.x),
+    cameraPosition.y + (GameState.headPosition.y - lastHeadPosition.y),
+    cameraPosition.z + (GameState.headPosition.z - lastHeadPosition.z)
+  );
 
 }
 
