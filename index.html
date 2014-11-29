@@ -137,7 +137,6 @@ var TextParams = Object.freeze({
   gameSize: 0.17,
   gameTimeout: 5000,
   winTimeout: 16000,
-  dojoSize: 0.20,
 
   levelMessages: [
     "There is no level zero",  
@@ -253,7 +252,7 @@ function createHomeScreen() {
   var textObj = createTextObject(
     "Rift Dojo",
     TextParams.signStartY,
-    TextParams.dojoSize, null
+    TextParams.signSize, null
   );
 
   var message;
@@ -261,6 +260,8 @@ function createHomeScreen() {
     message = "Leap Motion Controller required";
   } else if (!SceneState.vrEnabled) {
     message = "VR-enabled browser requried";
+  } else if (GameState.gameWon) {
+    message = "email RiftDojo@gmail for prize";
   } else {
     message = "Hit the spinning ball to begin";
   }
@@ -576,7 +577,12 @@ function updateGameState() {
   } else if (GameState.level === GameParams.finalLevel && 
              GameState.hitCount === GameState.levelBallCount) {
     // Player cleared final level!  Only show victory screen first time.
-    GameState.gameWon ? createHomeScreen() : createVictoryScreen();
+    if (GameState.gameWon) {
+      GameParams.soundNextLevel.play();
+      createHomeScreen();
+    } else {
+      createVictoryScreen();
+    }
 
   } else if (GameState.hitCount === GameState.levelBallCount) {
     // Player hit all balls, advance to next level.
