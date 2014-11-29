@@ -73,12 +73,12 @@ var SceneParams = Object.freeze({
   handColor: 0xC0C0C0,
   detectLeapTimeout: 1000,
   bannerColors: [
-    0xffffff,   // white
-    0xffff00,   // yellow
-    0x008000,   // green
-    0x0000ff,   // blue
-    0xff0000,   // red
-    0x000000,   // black
+    0xFFFFFF,   // white
+    0xFFFF33,   // yellow
+    0x006400,   // dark green
+    0x00008B,   // dark blue
+    0xA1150C,   // red
+    0x191919,   // black
   ],
 });
 
@@ -610,6 +610,7 @@ function updateGameState() {
   } else if (GameState.level === GameParams.finalLevel && 
              GameState.hitCount === GameState.levelBallCount) {
     // Player cleared final level!  Only show victory screen first time.
+    GameState.livesLeft = GameParams.playerLives;
     if (GameState.gameWon) {
       GameParams.soundNextLevel.play();
       createHomeScreen();
