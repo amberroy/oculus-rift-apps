@@ -80,6 +80,7 @@ var SceneParams = Object.freeze({
     0xA1150C,   // red
     0x191919,   // black
   ],
+  homeScreenMsg: null,
 });
 
 var SceneState = {
@@ -92,6 +93,7 @@ var SceneState = {
   lastTime: Date.now(),
   bannerLeft: null,
   bannerRight: null,
+  isFullscreen: false,
 }
 
 var GameParams = Object.freeze({
@@ -118,7 +120,7 @@ var GameParams = Object.freeze({
   playerHeightUp: 0.2,
   playerHeightDown: 2.0,
   missedEffectMillis: 500,
-  playerLives: 5,       // 3
+  playerLives: 5,       // 5
   homeStartY: -0.05,
   homeStartZ: -0.4,
   homeBallImage: "images/yinyang.png",
@@ -143,19 +145,28 @@ var TextParams = Object.freeze({
   messageStartY: 1.85,
   messageSize: 0.25,
 
+  levelMsg: "Level",
   levelTimeout: 5000,
-  gameSize: 0.17,
-  gameTimeout: 5000,
+  gameOverMsg: "GAME OVER",
+  gameOverSize: 0.17,
+  gameOverTimeout: 5000,
+  winMsg: "YOU WON",
   winTimeout: 16000,
 
+  gameName: "Rift Dojo",
+  victoryMsg: "Thank you for visiting Rift Dojo",
+  prizeMsg: "email RiftDojo@gmail for prize",
   levelMessages: [
-    "There is no level zero",  
-    "Block objects using palm", // 1
-    null,                       // 2
-    null,                       // 3
-    null,                       // 4
-    "Final Level"               // 5
+    "Hit the spinning ball to begin",
+    "Block objects using palm",   // 1
+    null,                         // 2
+    null,                         // 3
+    null,                         // 4
+    "Final Level"                 // 5
   ],
+  fsRequired: "Press 'return' to enter fullscreen",
+  leapRequried: "Leap Motion Controller required",
+  vrRequired: "VR-enabled browser requried",
 });
 
 var GameState = {
@@ -261,26 +272,29 @@ function createHomeScreen() {
   scene.add(GameState.ballGroup);
 
   var textObj = createTextObject(
-    "Rift Dojo",
+    TextParams.gameName,
     TextParams.signStartY,
     TextParams.signSize, null
   );
 
   var message;
   if (!SceneState.leapReady) {
-    message = "Leap Motion Controller required";
+    message = TextParams.leapRequried;
   } else if (!SceneState.vrEnabled) {
-    message = "VR-enabled browser requried";
+    message = TextParams.vrRequired;
   } else if (GameState.gameWon) {
-    message = "email RiftDojo@gmail for prize";
+    message = TextParams.prizeMsg;
+  } else if (!SceneState.isFullscreen) {
+    message = TextParams.fsRequired;
   } else {
-    message = "Hit the spinning ball to begin";
+    message = TextParams.levelMessages[0];
   }
   var messageObj = createTextObject(
     message,
     TextParams.messageStartY,
     TextParams.messageSize, null
   );
+  SceneState.homeScreenMsg = messageObj;
 
   // Add to ballGroup so it will be removed when the scene is cleared.
   GameState.ballGroup.add(textObj);
@@ -310,7 +324,7 @@ function createLevel(level) {
   }
   GameState.ballSpeed = speed;
 
-  createTextObject("Level " + GameState.level,
+  createTextObject(TextParams.levelMsg + " " + GameState.level,
                    TextParams.signStartY,
                    TextParams.signSize,
                    TextParams.levelTimeout);
@@ -457,13 +471,13 @@ function createVictoryScreen() {
   GameParams.soundGameWon.play();
 
   clearLevel();
-  createTextObject("YOU WON",
+  createTextObject(TextParams.winMsg,
                    TextParams.signStartY,
                    TextParams.signSize,
                    TextParams.winTimeout);
 
   createTextObject(
-    "Thank you for visiting Rift Dojo",
+    TextParams.victoryMsg,
     TextParams.messageStartY,
     TextParams.messageSize,
     TextParams.winTimeout
@@ -592,19 +606,21 @@ function updateGameState() {
     // Game Over, return to the home screen.
     GameParams.soundGameOver.play();
     clearLevel();
-    createTextObject("GAME OVER",
+    createTextObject(TextParams.gameOverMsg,
                      TextParams.signStartY,
-                     TextParams.gameSize,
-                     TextParams.gameTimeout);
+                     TextParams.gameOverSize,
+                     TextParams.gameOverTimeout);
     setTimeout( function() {
       GameState.livesLeft = GameParams.playerLives;
       createHomeScreen();
-    }, TextParams.gameTimeout);
+    }, TextParams.gameOverTimeout);
 
   } else if (GameState.level === 0 && 
              GameState.hitCount === GameParams.homeCount) {
     // Exit the home screen and load highest level reached.
     GameParams.soundGameStart.play();
+    vrControls.zeroSensor();  // reset HMD positional tracking
+    SceneState.homeScreenMsg = null;
     createLevel(GameState.highestLevel);
 
   } else if (GameState.level === GameParams.finalLevel && 
@@ -800,6 +816,44 @@ function logDebugInfo() {
   console.log("Game State:", GameState);
 }
 
+function onFullscreenChange() {
+  // Toggle fullscreen flag
+  SceneState.isFullscreen = !SceneState.isFullscreen;
+
+  var message = null;
+  if (SceneState.vrEnabled) {
+    if (SceneState.isFullscreen) {
+      if (GameState.level == 0) {
+        // Toggle message if we're in the home screen.
+        message = TextParams.levelMessages[0];
+      } else if (SceneState.homeScreenMsg) {
+        // Remove existing message.
+        GameState.ballGroup.remove(SceneState.homeScreenMsg);
+        SceneState.homeScreenMsg = null;
+      }
+    } else {
+      // Dropped out of fullscreen, add message even if on level screen.
+      message = TextParams.fsRequired;
+    }
+  }
+
+  if (message) {
+    // Add new homescreen message (which might be shown on level screen).
+    newMessageObj = createTextObject(
+      message,
+      TextParams.messageStartY,
+      TextParams.messageSize, null
+    );
+    GameState.ballGroup.remove(SceneState.homeScreenMsg);
+    SceneState.homeScreenMsg = newMessageObj;
+    GameState.ballGroup.add(newMessageObj);
+  }
+
+}
+document.addEventListener("fullscreenchange", onFullscreenChange, false);
+document.addEventListener("mozfullscreenchange", onFullscreenChange, false);
+document.addEventListener("webkitfullscreenchange", onFullscreenChange, false);
+
 function animate() { 
 
   if (SceneParams.handModel !== 'riggedHand') {
@@ -827,7 +881,7 @@ function render() {
 
 function main() {
 
-  console.log("Launching Rift Dojo " + VERSION);
+  console.log("Launching " + TextParams.gameName + VERSION);
 
   if (navigator.getVRDevices) {
     SceneState.vrEnabled = true;
