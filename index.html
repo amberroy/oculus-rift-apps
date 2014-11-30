@@ -2,21 +2,8 @@
   Rift Dojo - Web-VR martial arts game with Leap Motion hand tracking
   Copyright (c) 2014 Amber Roy and released under the MIT license:
   http://opensource.org/licenses/MIT
+  For image/sound attributions see: media/credits.html
   Created on: November 16, 2014
-
-  Image Credits:
-  white-dojo.png - http://brianleetrewitt.wordpress.com/2013/06/07/matrix-dojo/
-  yinyang.png - based on http://cosmicnavigator.com/node/1552
-
-  Sound effects:
-  hard-pop.wav - http://www.freesound.org/people/juskiddink/sounds/108616/
-  flapping-thud.wav - http://www.freesound.org/people/Setuniman/sounds/131141/
-  koto-hit.wav - http://www.freesound.org/people/Mondschein90/sounds/175672/
-  monochord-03.wav - http://www.freesound.org/people/Jagadamba/sounds/253765/
-  gong.wav - http://www.freesound.org/people/SuperDaveOsbourne/sounds/63643/
-  flute.wav - http://www.freesound.org/people/Soughtaftersounds/sounds/145447/
-  koto-shamisen-loop.wav - https://www.freesound.org/people/zagi2/sounds/222655/
-  low-bing.wav - http://www.freesound.org/people/nickgoa/sounds/186836/ (unused)
 -->
 <!doctype html>
 <html lang="en">
@@ -34,6 +21,7 @@
       <script src="//js.leapmotion.com/leap.rigged-hand-0.1.5.min.js"></script>
     -->
     <script src="js/three.min.js"></script>
+    <script src="js/three-shaders.js"></script>
     <script src="js/helvetiker_regular.typeface.js"></script>
     <script src="js/leap-0.6.3.min.js"></script> 
     <script src="js/leap-plugins-0.1.9.js"></script> 
@@ -42,7 +30,6 @@
     <!-- VR scripts from the THREE.js repo, VREffect modified slightly. -->
     <script src="js/VRControls.js"></script>
     <script src="js/VREffect.js"></script>
-
 
 </head>
 
@@ -64,9 +51,10 @@ var SceneParams = Object.freeze({
   skyBoxWidth: 18,
   skyBoxHeight: 8,
   skyBoxDepth: 18,
-  skyBoxImages: ["images/white-dojo-xpos.png", "images/white-dojo-xneg.png", 
-                 "images/white-dojo-ypos.png", "images/white-dojo-yneg.png", 
-                 "images/white-dojo-zpos.png", "images/white-dojo-zneg.png"],
+  skyBoxImages: [
+    "media/images/white-dojo-xpos.png","media/images/white-dojo-xneg.png", 
+    "media/images/white-dojo-ypos.png", "media/images/white-dojo-yneg.png", 
+    "media/images/white-dojo-zpos.png", "media/images/white-dojo-zneg.png"],
   handColor: 0xC0C0C0,
   detectLeapTimeout: 1000,
   bannerColors: [
@@ -111,7 +99,6 @@ var GameParams = Object.freeze({
   ballSpeedInc: 1.05,
   hitTolerance: 0.02,
   grabStrength: 0.5,
-  ballColor: 0xcc0000,  // red
   homeCount: 1,
   playerBufferZ: 0.1,
   playerWidth: 0.5,
@@ -121,15 +108,16 @@ var GameParams = Object.freeze({
   playerLives: 5,       // 5
   homeStartY: -0.05,
   homeStartZ: -0.4,
-  homeBallImage: "images/yinyang.png",
+  homeBallImage: "media/images/yinyang-white.png",
+  homeBallImageBlack: "media/images/yinyang.png",
   spinDuration: 5000,
-  soundHitBall: new Audio("sounds/hard-pop.wav"),
-  soundHitPlayer: new Audio("sounds/flapping-thud.wav"),
-  soundGameOver: new Audio("sounds/gong.wav"),
-  soundGameStart: new Audio("sounds/flute.wav"),
-  soundNextLevel: new Audio("sounds/koto-hit.wav"),
-  soundRestartLevel: new Audio("sounds/monochord-03.wav"),
-  soundGameWon: new Audio("sounds/koto-shamisen-loop.wav"),
+  soundHitBall: new Audio("media/sounds/hard-pop.wav"),
+  soundHitPlayer: new Audio("media/sounds/flapping-thud.wav"),
+  soundGameOver: new Audio("media/sounds/gong.wav"),
+  soundGameStart: new Audio("media/sounds/flute.wav"),
+  soundNextLevel: new Audio("media/sounds/koto-hit.wav"),
+  soundRestartLevel: new Audio("media/sounds/monochord-03.wav"),
+  soundGameWon: new Audio("media/sounds/koto-shamisen-loop.wav"),
 });
 
 var TextParams = Object.freeze({
@@ -256,8 +244,18 @@ function createHomeScreen() {
   GameState.level = 0;
 
   var ballGeo = new THREE.SphereGeometry(GameParams.ballRadius, 16, 16);
-  var ballTexture = new THREE.ImageUtils.loadTexture(GameParams.homeBallImage);
-  var ballMat = new THREE.MeshPhongMaterial({map: ballTexture});  
+  var ballTexture = new THREE.ImageUtils.loadTexture(
+    GameState.highestLevel === 1 ? GameParams.homeBallImageBlack :
+                                   GameParams.homeBallImage
+  );
+  var ballMat = new THREE.MeshPhongMaterial({
+    map: ballTexture,
+    color: SceneParams.bannerColors[GameState.gameWon ?
+                                    GameState.highestLevel :
+                                    GameState.highestLevel-1],
+    shininess: 0, 
+  });  
+
   var ball = new THREE.Mesh(ballGeo, ballMat);
   ball.position.set(0, GameParams.homeStartY, GameParams.homeStartZ);
 
@@ -336,7 +334,8 @@ function createLevel(level) {
   setTimeout( function() {
     // Wait a bit before adding objects to the scene.
     for (var i=0; i < GameState.levelBallCount; i++) {
-      createBallObject(GameParams.ballColor, i, level);
+      // Ball color matches banner color.
+      createBallObject(SceneParams.bannerColors[level-1], i, level);
     }
     scene.add(GameState.ballGroup);
 
