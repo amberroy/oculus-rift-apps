@@ -99,11 +99,12 @@ var GameParams = Object.freeze({
   initialBallCount: 25, // 25
   ballCountInc: 5,      // 5
   ballRadius: 0.04,
-  ballStartVR: [0.0, -0.08, -9.0],
-  ballStartNoVR: [ 0.0, -0.01, -3.0],
+  ballStartVR: [0.0, -0.08, -5.0],
+  ballStartNoVR: [ 0.0, 0.03, -5.0],
   ballRangeVR: [0.2, 0.2],
-  ballRangeNoVR: [0.2, 0.15],
+  ballRangeNoVR: [0.175, 0.175],
   ballIntervalStart: 1.0,
+  ballIntervalStartNoVR: 1.25,
   ballIntervalInc: 1.10,
   ballStopZ: 1.5,
   ballSpeedStart: 0.005,// >0.006 is hard
@@ -359,7 +360,10 @@ function createBallObject(color, index, level) {
 }
 
 function randomBallPosition(ball, index, level) {
-  var interval = GameParams.ballIntervalStart; 
+  //var interval = GameParams.ballIntervalStart; 
+  var interval = SceneState.vrEnabled ?
+                 GameParams.ballIntervalStart :
+                 GameParams.ballIntervalStartNoVR;
   for (var i=1; i < level; i++) {
     // Do the loop every time in case we jump around between levels.
     interval *= GameParams.ballIntervalInc;
@@ -503,7 +507,7 @@ function initLeap() {
     effectiveParent: camera,
     position: SceneState.vrEnabled ? 
               new THREE.Vector3(0, 0, -0.08) :        // VR default
-              new THREE.Vector3(0, -0.25, -0.25),     // for desktop
+              new THREE.Vector3(0, -0.15, -0.3),     // for desktop
   });
 }
 
