@@ -260,7 +260,7 @@ function createHomeScreen() {
   ball.position.set(0, GameParams.homeStartY, GameParams.homeStartZ);
 
   // Rotate ball so the yin-yang symbol starts near the front.
-  ball.rotateOnAxis( new THREE.Vector3(0,1,0), 90 * (Math.PI / 180));
+  ball.rotateOnAxis( new THREE.Vector3(0,1,0), -90 * (Math.PI / 180));
 
   ball.ballState = Object.create(BallState);
   GameState.ballObjects.push(ball);
