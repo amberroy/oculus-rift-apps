@@ -646,6 +646,11 @@ function checkHandPosition() {
 
     var palmPosition = new THREE.Vector3().fromArray(hand.palmPosition);
 
+    // Middle finger joint just above the knuckle.
+    // Use as collider to prevent objects from going through fingers.
+    var fingersPosition = new THREE.Vector3().fromArray(
+                              hand.middleFinger.pipPosition);
+
     for (var j=0; j < GameState.ballObjects.length; j++) {
       var ball = GameState.ballObjects[j];
       var ballRadius = ball.geometry.boundingSphere.radius;
@@ -655,9 +660,11 @@ function checkHandPosition() {
       }
 
       // Simple collision detection algorithm.
-      var distance = palmPosition.distanceTo(ball.position);
+      var distancePalm = palmPosition.distanceTo(ball.position);
+      var distanceFingers = fingersPosition.distanceTo(ball.position);
 
-      if (distance < ballRadius + GameParams.hitTolerance) {
+      if (distancePalm < ballRadius + GameParams.hitTolerance ||
+          distanceFingers < ballRadius + GameParams.hitTolerance) {
 
         // Hit!
         GameState.hitCount++;
