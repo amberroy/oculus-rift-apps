@@ -56,7 +56,7 @@
 <script>
 
 var DEBUG = true;
-var VERSION  = "0.3"
+var VERSION  = "0.4"
 var frameCount = 0;
 var ZERO_VECTOR3 = new THREE.Vector3(0,0,0);
 
@@ -821,13 +821,13 @@ function onFullscreenChange() {
   SceneState.isFullscreen = !SceneState.isFullscreen;
 
   var message = null;
-  if (SceneState.vrEnabled) {
+  if (SceneState.vrEnabled && !GameState.gameWon) {
     if (SceneState.isFullscreen) {
       if (GameState.level == 0) {
-        // Toggle message if we're in the home screen.
+        // Just entered fullscreen mode on game home screeen.
         message = TextParams.levelMessages[0];
       } else if (SceneState.homeScreenMsg) {
-        // Remove existing message.
+        // Just entered fullscreen mode on level screen, clear message.
         GameState.ballGroup.remove(SceneState.homeScreenMsg);
         SceneState.homeScreenMsg = null;
       }
