@@ -71,8 +71,8 @@ var SceneParams = Object.freeze({
 var SceneState = {
   vrEnabled: false,
   leapReady: false,
-  handModel: null,
   webAudio: false,
+  handModel: null,
   isAnimating: true,
   stopAnimationRequest: false,
   lastTime: Date.now(),
@@ -111,13 +111,13 @@ var GameParams = Object.freeze({
   homeBallImage: "media/images/yinyang-white.png",
   homeBallImageBlack: "media/images/yinyang.png",
   spinDuration: 5000,
-  soundHitBall: new Audio("media/sounds/hard-pop.wav"),
-  soundHitPlayer: new Audio("media/sounds/flapping-thud.wav"),
-  soundGameOver: new Audio("media/sounds/gong.wav"),
-  soundGameStart: new Audio("media/sounds/flute.wav"),
-  soundNextLevel: new Audio("media/sounds/koto-hit.wav"),
-  soundRestartLevel: new Audio("media/sounds/monochord-03.wav"),
-  soundGameWon: new Audio("media/sounds/koto-shamisen-loop.wav"),
+  soundHitBall: new Audio("media/sounds/hard-pop.mp3"),
+  soundHitPlayer: new Audio("media/sounds/flapping-thud.mp3"),
+  soundGameOver: new Audio("media/sounds/gong.mp3"),
+  soundGameStart: new Audio("media/sounds/flute.mp3"),
+  soundNextLevel: new Audio("media/sounds/koto-hit.mp3"),
+  soundRestartLevel: new Audio("media/sounds/monochord-03.mp3"),
+  soundGameWon: new Audio("media/sounds/koto-shamisen-loop.mp3"),
 });
 
 var TextParams = Object.freeze({
@@ -449,8 +449,8 @@ function createBanners(color) {
     scene.remove(bannerLeft);
     scene.remove(bannerRight);
   }
-  var bannerGeo = new THREE.PlaneGeometry(0.5, 1.78);
-  var bannerGeo = new THREE.PlaneGeometry(0.5, 1.78);
+  var bannerGeo = new THREE.PlaneBufferGeometry(0.5, 1.78);
+  var bannerGeo = new THREE.PlaneBufferGeometry(0.5, 1.78);
   var bannerMat = new THREE.MeshBasicMaterial({ color: color });
   var bannerLeft = new THREE.Mesh(bannerGeo, bannerMat);
   var bannerRight = new THREE.Mesh(bannerGeo, bannerMat);
@@ -891,6 +891,14 @@ function main() {
   } else {
     SceneState.vrEnabled = false;
     console.log("Browser is not VR-enabled");
+  }
+
+  if (window.AudioContext || window.webkitAudioContext) {
+    SceneState.webAudio = true;
+    console.log("Web Audio detected");
+  } else {
+    SceneState.webAudio = false;
+    console.log("Browser does not support Web Audio");
   }
 
   initScene()
