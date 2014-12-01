@@ -152,7 +152,7 @@ var TextParams = Object.freeze({
   ],
   fsRequired: "Press 'return' to enter fullscreen",
   leapRequried: "Leap Motion Controller required",
-  vrRequired: "VR-enabled browser requried",
+  vrRequired: "Your browser is not Web-VR ready",
 });
 
 var GameState = {
@@ -282,19 +282,21 @@ function createHomeScreen() {
     message = TextParams.prizeMsg;
   } else if (!SceneState.isFullscreen) {
     message = TextParams.fsRequired;
-  } else {
+  } else if (GameState.highestLevel == 1) {
     message = TextParams.levelMessages[0];
   }
-  var messageObj = createTextObject(
-    message,
-    TextParams.messageStartY,
-    TextParams.messageSize, null
-  );
-  SceneState.homeScreenMsg = messageObj;
+  if (message) {
+    var messageObj = createTextObject(
+      message,
+      TextParams.messageStartY,
+      TextParams.messageSize, null
+    );
+    SceneState.homeScreenMsg = messageObj;
+    GameState.ballGroup.add(messageObj);
+  }
 
   // Add to ballGroup so it will be removed when the scene is cleared.
   GameState.ballGroup.add(textObj);
-  GameState.ballGroup.add(messageObj);
 }
 
 function createLevel(level) {
@@ -506,7 +508,7 @@ function initLeap() {
     effectiveParent: camera,
     position: SceneState.vrEnabled ? 
               new THREE.Vector3(0, 0, -0.08) :        // VR default
-              new THREE.Vector3(0, -0.15, -0.3),     // for desktop
+              new THREE.Vector3(0, -0.15, -0.5),     // for desktop
   });
 }
 
