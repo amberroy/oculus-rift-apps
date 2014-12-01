@@ -560,14 +560,6 @@ function initHandModel() {
 
 function initAudio() {
 
-  if (window.AudioContext || window.webkitAudioContext) {
-    SceneState.webAudio = true;
-    console.log("Web Audio detected");
-  } else {
-    SceneState.webAudio = false;
-    console.log("Browser does not support Web Audio");
-  }
-
   // Chromium cannot play mp3 waaaaaaaaaah
   var ext = (new Audio()).canPlayType('audio/mpeg') ? ".mp3" : ".wav";
   console.log("ext",ext);
@@ -909,7 +901,7 @@ function render() {
 
 function main() {
 
-  console.log("Launching " + TextParams.gameName + VERSION);
+  console.log("Launching "+TextParams.gameName+" "+VERSION);
 
   if (navigator.getVRDevices) {
     SceneState.vrEnabled = true;
