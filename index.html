@@ -111,14 +111,17 @@ var GameParams = Object.freeze({
   homeBallImage: "media/images/yinyang-white.png",
   homeBallImageBlack: "media/images/yinyang.png",
   spinDuration: 5000,
-  soundHitBall: new Audio("media/sounds/hard-pop.mp3"),
-  soundHitPlayer: new Audio("media/sounds/flapping-thud.mp3"),
-  soundGameOver: new Audio("media/sounds/gong.mp3"),
-  soundGameStart: new Audio("media/sounds/flute.mp3"),
-  soundNextLevel: new Audio("media/sounds/koto-hit.mp3"),
-  soundRestartLevel: new Audio("media/sounds/monochord-03.mp3"),
-  soundGameWon: new Audio("media/sounds/koto-shamisen-loop.mp3"),
 });
+
+var AudioState = {
+  soundHitBall: null,
+  soundHitPlayer: null,
+  soundGameOver: null,
+  soundGameStart: null,
+  soundNextLevel: null,
+  soundRestartLevel: null,
+  soundGameWon: null,
+};
 
 var TextParams = Object.freeze({
   color: 0x000000,
@@ -309,10 +312,10 @@ function createLevel(level) {
   GameState.levelBallCount = GameParams.initialBallCount +
                              (GameParams.ballCountInc * level - 1);
 
-  if (GameParams.soundGameWon.currentTime > 0) {
+  if (AudioState.soundGameWon.currentTime > 0) {
     // End looping music. No stop() method so pause and rewind.
-    GameParams.soundGameWon.pause();
-    GameParams.soundGameWon.currentTime = 0.0;
+    AudioState.soundGameWon.pause();
+    AudioState.soundGameWon.currentTime = 0.0;
   }
 
   var speed = GameParams.ballSpeedStart; 
@@ -469,8 +472,8 @@ function createVictoryScreen() {
 
   createBanners(SceneParams.bannerColors[ GameState.level ]);
   GameState.gameWon = true;
-  GameParams.soundGameWon.loop = true;
-  GameParams.soundGameWon.play();
+  AudioState.soundGameWon.loop = true;
+  AudioState.soundGameWon.play();
 
   clearLevel();
   createTextObject(TextParams.winMsg,
@@ -555,6 +558,29 @@ function initHandModel() {
 
 }
 
+function initAudio() {
+
+  if (window.AudioContext || window.webkitAudioContext) {
+    SceneState.webAudio = true;
+    console.log("Web Audio detected");
+  } else {
+    SceneState.webAudio = false;
+    console.log("Browser does not support Web Audio");
+  }
+
+  // Chromium cannot play mp3 waaaaaaaaaah
+  var ext = (new Audio()).canPlayType('audio/mpeg') ? ".mp3" : ".wav";
+  console.log("ext",ext);
+
+  AudioState.soundHitBall = new Audio("media/sounds/hard-pop"+ext);
+  AudioState.soundHitPlayer = new Audio("media/sounds/flapping-thud"+ext);
+  AudioState.soundGameOver = new Audio("media/sounds/gong"+ext);
+  AudioState.soundGameStart = new Audio("media/sounds/flute"+ext);
+  AudioState.soundNextLevel = new Audio("media/sounds/koto-hit"+ext);
+  AudioState.soundRestartLevel = new Audio("media/sounds/monochord-03"+ext);
+  AudioState.soundGameWon = new Audio("media/sounds/koto-shamisen-loop"+ext);
+}
+
 function onLeapFrame(frame) {
 
   if (!SceneState.leapReady) {
@@ -606,7 +632,7 @@ function updateGameState() {
 
   if (GameState.gameOver) {
     // Game Over, return to the home screen.
-    GameParams.soundGameOver.play();
+    AudioState.soundGameOver.play();
     clearLevel();
     createTextObject(TextParams.gameOverMsg,
                      TextParams.signStartY,
@@ -620,7 +646,7 @@ function updateGameState() {
   } else if (GameState.level === 0 && 
              GameState.hitCount === GameParams.homeCount) {
     // Exit the home screen and load highest level reached.
-    GameParams.soundGameStart.play();
+    AudioState.soundGameStart.play();
     vrControls.zeroSensor();  // reset HMD positional tracking
     SceneState.homeScreenMsg = null;
     createLevel(GameState.highestLevel);
@@ -630,7 +656,7 @@ function updateGameState() {
     // Player cleared final level!  Only show victory screen first time.
     GameState.livesLeft = GameParams.playerLives;
     if (GameState.gameWon) {
-      GameParams.soundNextLevel.play();
+      AudioState.soundNextLevel.play();
       createHomeScreen();
     } else {
       createVictoryScreen();
@@ -638,19 +664,19 @@ function updateGameState() {
 
   } else if (GameState.hitCount === GameState.levelBallCount) {
     // Player hit all balls, advance to next level.
-    GameParams.soundNextLevel.play();
+    AudioState.soundNextLevel.play();
     createBanners(SceneParams.bannerColors[ GameState.level ]);
     createLevel(GameState.level+1);
 
   } else if (GameState.levelBallCount === 
              GameState.hitCount + GameState.missCount) {
     // End of level but not all balls hit, restart level.
-    GameParams.soundRestartLevel.play();
+    AudioState.soundRestartLevel.play();
     createLevel(GameState.level);
 
   } else if (GameState.isPlayerHit) {
     // Player got hit with a ball, restart level.
-    GameParams.soundRestartLevel.play();
+    AudioState.soundRestartLevel.play();
     createLevel(GameState.level);
   }
 
@@ -686,7 +712,7 @@ function checkHandPosition() {
 
         // Hit!
         GameState.hitCount++;
-        GameParams.soundHitBall.play();
+        AudioState.soundHitBall.play();
         ball.ballState.isInPlay = false;
 
         // Leave ball in the scene for now, but make invisible.
@@ -733,7 +759,7 @@ function updateBallPosition() {
         ball.ballState.isInPlay = false;
         SceneState.stopAnimationRequest = true;
         GameState.livesLeft--;
-        GameParams.soundHitPlayer.play();
+        AudioState.soundHitPlayer.play();
         setTimeout(function () {
           if (GameState.livesLeft === 0) {
             GameState.gameOver = true;
@@ -893,14 +919,7 @@ function main() {
     console.log("Browser is not VR-enabled");
   }
 
-  if (window.AudioContext || window.webkitAudioContext) {
-    SceneState.webAudio = true;
-    console.log("Web Audio detected");
-  } else {
-    SceneState.webAudio = false;
-    console.log("Browser does not support Web Audio");
-  }
-
+  initAudio();
   initScene()
   initLeap();
 
@@ -918,7 +937,7 @@ function main() {
     }
 
     initHandModel();
-    GameParams.soundGameStart.play();
+    AudioState.soundGameStart.play();
     createHomeScreen();
     animate();
 
