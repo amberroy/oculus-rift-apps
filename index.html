@@ -92,8 +92,9 @@ var GameParams = Object.freeze({
   ballIntervalStart: 1.0,
   ballIntervalInc: 1.10,
   ballStopZ: 1.5,
-  ballSpeedStart: 0.005,// >0.006 is hard
-  ballSpeedInc: 1.05,
+  ballSpeedStart: 0.010, // final 0.0286
+  ballSpeedInc: 1.30,
+
   hitTolerance: 0.02,
   grabStrength: 0.5,
   homeCount: 1,
@@ -115,7 +116,7 @@ var GameParams = Object.freeze({
 
   ballStartSpreadX: [-2.1, 2.1],
   ballStartRotations: [45/2, -45/2],
-  ballSpeedStartSpread: 0.003,// >0.006 is hard
+  ballSpeedStartSpread: 0.006, // final 0.0171
 
   initialSublevel: 1,   // 1
   finalSublevel: 2,
@@ -395,6 +396,7 @@ function randomBallPosition(ball, index) {
   var interval = SceneState.vrEnabled ?
                  GameParams.ballIntervalStart :
                  GameParams.ballIntervalStartNoVR;
+
   for (var i=1; i < GameState.level; i++) {
     // Do the loop every time in case we jump around between levels.
     interval *= GameParams.ballIntervalInc;
@@ -819,10 +821,7 @@ function updateBallPosition() {
 
     if (ball.ballState.isInPlay) {
       // Move ball according to initial speed and current level.
-      var percentInc = GameParams.ballSpeedInc * (GameState.level-1);
-      var ballSpeedAdd = GameParams.ballSpeedStart * percentInc;
-      var ballStep = GameParams.ballSpeedStart + ballSpeedAdd;
-      ball.translateZ(ballStep);
+      ball.translateZ(GameState.ballSpeed);
     }
 
   }
