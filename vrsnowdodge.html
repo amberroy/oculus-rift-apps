@@ -1,0 +1,216 @@
+<!--
+  VR Snow Dodge - Oculus Rift Web-VR game
+  http://VRsnowdodge.com
+
+  Copyright (c) 2014 Amber Roy and released under the MIT license:
+  http://opensource.org/licenses/MIT
+  Created on: December 31, 2014
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>VR Snow Dodge - Oculus Rift Web-VR Game</title>
+    <meta charset="utf-8">
+    <style>
+    </style>
+    <!-- https://cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js -->
+    <script src="js/three.min.js"></script>
+
+    <!-- from threejs > examples > js > controls -->
+    <script src="js/OrbitControls.js"></script>
+
+</head>
+
+<body>
+  <div id="container"></div>
+</body>
+
+<script>
+
+var renderer, scene, camera;
+var cameraControls, effectController;
+var clock = new THREE.Clock();
+
+
+function init() {
+
+  var canvasWidth = window.innerWidth;
+  var canvasHeight = window.innerHeight;
+  var canvasRatio = canvasWidth / canvasHeight;
+
+  // renderer
+  renderer = new THREE.WebGLRenderer( { antialias: true } );
+  renderer.gammaInput = true;
+  renderer.gammaOutput = true;
+  renderer.setSize(canvasWidth, canvasHeight);
+  // color from http://rgb.to/color/17004/sky-blue
+  renderer.setClearColor( 0x0038bb, 1.0 );
+
+  // camera
+  camera = new THREE.PerspectiveCamera( 30, canvasRatio, 1, 10000 );
+  camera.position.set(0, 20, 200);
+
+  onResize = function() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  };
+  window.addEventListener('resize', onResize, false);
+
+  // controls
+  cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
+  cameraControls.target.set(0, 43, -8);
+
+  // add to DOM
+  var container = document.getElementById('container');
+  container.appendChild( renderer.domElement );
+}
+
+
+function createScene() {
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog( 0x808080, 2000, 4000 );
+
+  // lights
+  var ambientLight = new THREE.AmbientLight( 0x222222 );
+
+  var light = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
+  light.position.set( 200, 400, 500 );
+
+  var light2 = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
+  light2.position.set( -500, 250, -200 );
+
+  scene.add( ambientLight );
+  scene.add( light );
+  scene.add( light2 );
+
+  var snowmanGroup = createSnowman();
+  scene.add( snowmanGroup );
+
+  //var axisHelper = new THREE.AxisHelper(100);
+  //scene.add( axisHelper );
+}
+
+
+function createSnowman() {
+  // http://emojipedia.org/snowman-without-snow/
+  // http://www.theblaze.com/stories/2014/03/04/meet-the-granddaddy-of-all-snowmen-that-has-whole-trees-for-arms/
+
+  var snowmanGroup = new THREE.Object3D();
+
+  // snowman body
+  var snowMaterial = new THREE.MeshLambertMaterial( { color: 0xFFFFFF } );
+  var bottomGeo = new THREE.SphereGeometry( 20, 32, 16 );
+  var middleGeo = new THREE.SphereGeometry( 15, 32, 16 );
+  var topGeo = new THREE.SphereGeometry( 10, 32, 16 );
+
+  var bodyBottom = new THREE.Mesh( bottomGeo, snowMaterial);
+  var bodyMiddle = new THREE.Mesh( middleGeo, snowMaterial );
+  var bodyTop = new THREE.Mesh( topGeo, snowMaterial );
+
+  bodyBottom.position.y = 20;
+  bodyMiddle.position.y = 50;
+  bodyTop.position.y = 70;
+
+  snowmanGroup.add( bodyBottom );
+  snowmanGroup.add( bodyMiddle );
+  snowmanGroup.add( bodyTop );
+
+  // snowman arms
+  // color from http://rgb.to/color/22869/wood-brown
+  var woodMaterial = new THREE.MeshLambertMaterial( { color: 0x562f0e } );
+
+  var armGeo = new THREE.CylinderGeometry( 2, 2, 30, 32 );
+
+  var armLeft = new THREE.Mesh( armGeo, woodMaterial );
+  var armRight = new THREE.Mesh( armGeo, woodMaterial );
+
+  armLeft.position.x = 15;
+  armLeft.position.y = 55;
+  armLeft.position.z = 0;
+  armLeft.rotation.x = 0 * (Math.PI / 180);
+  armLeft.rotation.y = 0 * (Math.PI / 180);
+  armLeft.rotation.z = 120 * (Math.PI / 180);
+
+  armRight.position.x = -15;
+  armRight.position.y = 55;
+  armRight.position.z = 0;
+  armRight.rotation.x = 0 * (Math.PI / 180);
+  armRight.rotation.y = 0 * (Math.PI / 180);
+  armRight.rotation.z = -120 * (Math.PI / 180);
+
+  snowmanGroup.add( armLeft );
+  snowmanGroup.add( armRight );
+
+  // snowman face
+  var coalMaterial = new THREE.MeshLambertMaterial( { color: 0x1E1E1E } );  // alt 0A0A0A
+  // WBN rounded corners: mrdoob.github.io/three.js/examples/webgl_geometry_subdivision.html
+  var boxGeo = new THREE.BoxGeometry( 2, 2, 1 );
+  var box = new THREE.Mesh ( boxGeo, coalMaterial );
+
+  // nose
+  var boxClone = box.clone();
+  boxClone.position.set(0, 72, 10);
+  snowmanGroup.add( boxClone );
+
+  // eyes
+  boxClone = box.clone();
+  boxClone.position.set(3, 75, 8.5);
+  boxClone.rotation.x -= 10;
+  snowmanGroup.add( boxClone );
+  boxClone = box.clone();
+  boxClone.position.set(-3, 75, 8.5);
+  boxClone.rotation.x -= 10;
+  snowmanGroup.add( boxClone );
+
+  // mouth
+  boxClone = box.clone();
+  boxClone.position.set(0, 68, 10);
+  snowmanGroup.add( boxClone );
+  boxClone = box.clone();
+  boxClone.position.set(2, 68.5, 10);
+  snowmanGroup.add( boxClone );
+  boxClone = box.clone();
+  boxClone.position.set(-2, 68.5, 10);
+  snowmanGroup.add( boxClone );
+
+  // buttons
+  boxClone = box.clone();
+  boxClone.position.set(0, 50, 15.25);
+  snowmanGroup.add( boxClone );
+
+  boxClone = box.clone();
+  boxClone.position.set(0, 55, 14.5);
+  boxClone.rotation.x += 3;
+  snowmanGroup.add( boxClone );
+
+  boxClone = box.clone();
+  boxClone.position.set(0, 45, 14.5);
+  boxClone.rotation.x -= 3;
+  snowmanGroup.add( boxClone );
+
+  return snowmanGroup;
+}
+
+
+function animate() {
+  window.requestAnimationFrame(animate);
+
+  var delta = clock.getDelta();
+  cameraControls.update(delta);
+
+  renderer.render(scene, camera);
+}
+
+
+function main() {
+
+    init();
+    createScene();
+    animate();
+}
+window.addEventListener("load", main);
+
+</script>
+</html>
