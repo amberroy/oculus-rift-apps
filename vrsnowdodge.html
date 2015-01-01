@@ -19,6 +19,11 @@
     <!-- from threejs > examples > js > controls -->
     <script src="js/OrbitControls.js"></script>
 
+    <!-- from threejs > examples > js > controls (dev branch 2014-11-29) -->
+    <script src="js/VRControls.js"></script>
+    <!-- from threejs > examples > js > effects (dev branch 2014-11-20) -->
+    <script src="js/VREffect.js"></script>
+
 </head>
 
 <body>
@@ -27,12 +32,14 @@
 
 <script>
 
+var vrControls, vrEffect, vrEnabled;
 var renderer, scene, camera;
 var cameraControls, effectController;
 var clock = new THREE.Clock();
 
 
 function init() {
+  // for example see: http://threejs.org/examples/#webgl_effects_vr
 
   var canvasWidth = window.innerWidth;
   var canvasHeight = window.innerHeight;
@@ -58,8 +65,31 @@ function init() {
   window.addEventListener('resize', onResize, false);
 
   // controls
-  cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
-  cameraControls.target.set(0, 43, -8);
+  if (vrEnabled) {
+
+    vrControls = new THREE.VRControls(camera);
+    vrEffect = new THREE.VREffect(renderer);
+
+    // Rift SDK returns position in meters, treat scene units as centimeters.
+    vrControls.scale = 100;
+
+    onKeyPress = function(event) {
+      // "f" enters VR fullscreen mode
+      if (String.fromCharCode(event.which) === 'f') {
+        vrEffect.setFullScreen(true); 
+      } 
+
+      // "z" key resets positional tracking camera
+      if (String.fromCharCode(event.which) === 'z') {
+        vrControls.zeroSensor();  
+      } 
+    };
+    window.addEventListener("keypress", onKeyPress);
+
+  } else {
+    cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
+    cameraControls.target.set(0, 43, -8);
+  }
 
   // add to DOM
   var container = document.getElementById('container');
@@ -88,8 +118,18 @@ function createScene() {
   var snowmanGroup = createSnowman();
   scene.add( snowmanGroup );
 
-  //var axisHelper = new THREE.AxisHelper(100);
-  //scene.add( axisHelper );
+  var axisHelper = new THREE.AxisHelper(100);
+  scene.add( axisHelper );
+
+  if (vrEnabled) {
+    // Move snowman away from camera, instead of moving camera away from snowman.
+    // Otherwise, camera ends up at origin position (0, 0, 0) underneath snowman,
+    // since vrControls resets camera position to zero before applying data from
+    // Oculus Rift positional tracking sensor.
+    snowmanGroup.position.y -= camera.position.y;
+    snowmanGroup.position.z -= camera.position.z;
+  }
+
 }
 
 
@@ -197,18 +237,31 @@ function createSnowman() {
 function animate() {
   window.requestAnimationFrame(animate);
 
-  var delta = clock.getDelta();
-  cameraControls.update(delta);
+  if (vrEnabled) {
+    vrControls.update();
+    vrEffect.render(scene, camera);
+  } else {
+    var delta = clock.getDelta();
+    cameraControls.update(delta);
+    renderer.render(scene, camera);
+  }
 
-  renderer.render(scene, camera);
 }
 
 
 function main() {
 
-    init();
-    createScene();
-    animate();
+  if (navigator.getVRDevices) {
+    vrEnabled = true;
+    console.log("VR-enabled browser detected");
+  } else {
+    vrEnabled = false;
+    console.log("Browser is not VR-enabled");
+  }
+
+  init();
+  createScene();
+  animate();
 }
 window.addEventListener("load", main);
 
