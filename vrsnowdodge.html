@@ -116,7 +116,6 @@ function createScene() {
   scene.setGravity( new THREE.Vector3(0, -200, 0));  // default is -10
   scene.addEventListener("update", function() {
     // physics simulation runs in different thread; wait until done before calling again
-    //snowball.applyImpulse(new THREE.Vector3(0, 1, 2.5), new THREE.Vector3(0, 0 , 0));
     scene.simulate();
   });
 
@@ -292,6 +291,12 @@ function createSnowman() {
 
 function animate() {
   window.requestAnimationFrame(animate);
+
+  if (snowball.position.z > camera.position.z) {
+    // Once snowball passes player, throw it again.
+    scene.remove(snowball);
+    createSnowball();
+  }
 
   if (vrEnabled) {
     vrControls.update();
