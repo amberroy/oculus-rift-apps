@@ -167,7 +167,7 @@ function createGround() {
 }
 
 function createSnowball() {
-  var ballGeo = new THREE.SphereGeometry(5, 32, 16)
+  var ballGeo = new THREE.SphereGeometry(2.5, 32, 16)
   var ballMat = new Physijs.createMaterial(
     new THREE.MeshLambertMaterial( { color: 0xFFFFFF } ),
     0.8,  // high friction 
@@ -176,13 +176,26 @@ function createSnowball() {
   var ballMass = 1;
   snowball = new Physijs.SphereMesh( ballGeo, ballMat, ballMass );
   snowball.addEventListener( 'ready', function() {
-    var force = new THREE.Vector3(0, 100, 100);
+    // x-value will be opposite when throwing from right hand.
+    var force = new THREE.Vector3(-42, 150, 350);
+
+    // Rotate the force vector to have same rotation as snowman,
+    // so snowball is thrown in direction the snowman is looking.
+    var axisX = new THREE.Vector3(1, 0, 0);
+    var axisY = new THREE.Vector3(0, 1, 0);
+    var axisZ = new THREE.Vector3(0, 0, 1);
+    force.applyAxisAngle( axisX, snowmanGroup.rotation.x)
+    force.applyAxisAngle( axisY, snowmanGroup.rotation.y)
+    force.applyAxisAngle( axisZ, snowmanGroup.rotation.z)
+
     snowball.applyCentralImpulse(force)
   });
 
   snowball.position.copy(snowmanGroup.position);
-  snowball.position.x += 30 * snowmanGroup.scale.x;
-  snowball.position.y += 63.5 * snowmanGroup.scale.y;
+  // WBN: Determine snowball position from arm position.
+  // Not sure why I made the snowperson left-handed.
+  snowball.position.x += 53;
+  snowball.position.y += 115.5;
   scene.add(snowball);
 }
 
@@ -282,7 +295,7 @@ function createSnowman() {
   boxClone.rotation.x -= 3;
   snowmanGroup.add( boxClone );
 
-  // our snowperson is 90 units tall, convert to 165 units (65 inches ~ 165 cm)
+  // original height is 90 units tall, convert to 165 units/cm (~65 inches)
   var scale = 165 / 90; 
   snowmanGroup.scale.set(scale, scale, scale);
 
@@ -292,9 +305,8 @@ function createSnowman() {
 function animate() {
   window.requestAnimationFrame(animate);
 
-  if (snowball.position.z > camera.position.z) {
-    // Once snowball passes player, throw it again.
-    scene.remove(snowball);
+  if (snowball.position.z - camera.position.z > 500) {
+    // TODO: Use array of snowballs instead of overwriting same variable.
     createSnowball();
   }
 
@@ -303,6 +315,11 @@ function animate() {
     // vrControls.update resets camera height to zero (with positional tracking offset)
     // so reapply the original height, otherwise player's view is at ground-level.
     camera.position.y += CAMERA_HEIGHT;
+    snowmanGroup.lookAt( new THREE.Vector3(
+      // Respond to changes in x and z only; if y included, snowman leans back to look up.
+      camera.position.x, snowmanGroup.position.y, camera.position.z
+    ));
+
     vrEffect.render(scene, camera);
   } else {
     var delta = clock.getDelta();
