@@ -5,6 +5,9 @@
   Copyright (c) 2014 Amber Roy and released under the MIT license:
   http://opensource.org/licenses/MIT
   Created on: December 31, 2014
+
+  Sound effects:
+  snow-on-cement - https://www.freesound.org/people/Julien%20Matthey/sounds/167080/
 -->
 <!doctype html>
 <html lang="en">
@@ -50,6 +53,9 @@ Physijs.scripts.worker = "js/physijs_worker.js";
 // path apparently relative to above directory
 Physijs.scripts.ammo = "ammo.js"; 
 
+// Chromium cannot play mp3 audio files so include wav too.
+var audioExt = (new Audio()).canPlayType('audio/mpeg') ? ".mp3" : ".wav";
+var soundSnowballHit = new Audio("snow-on-cement"+audioExt);
 
 function init() {
   // for example see: http://threejs.org/examples/#webgl_effects_vr
@@ -367,6 +373,7 @@ function checkCollision() {
   if ( distance <= forceFieldRadius ) {
     if (snowball.visible) {
       // collision effect
+      soundSnowballHit.play();
       forceField.visible = true;
       setTimeout( function() {
         forceField.visible = false;
