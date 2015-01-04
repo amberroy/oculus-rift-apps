@@ -42,7 +42,7 @@ var clock = new THREE.Clock();
 
 var snowmanGroup = new THREE.Object3D();
 var snowball;
-var CAMERA_HEIGHT = 156;
+var CAMERA_HEIGHT = 140;
 
 Physijs.scripts.worker = "js/physijs_worker.js";
 // ammo: from https://github.com/kripken/ammo.js (2014-11-21)
@@ -201,7 +201,6 @@ function createSnowball() {
 
 
 function createSnowman() {
-  // http://emojipedia.org/snowman-without-snow/
   // http://www.theblaze.com/stories/2014/03/04/meet-the-granddaddy-of-all-snowmen-that-has-whole-trees-for-arms/
 
   // snowman body
@@ -312,14 +311,13 @@ function animate() {
 
   if (vrEnabled) {
     vrControls.update();
+    snowmanGroup.lookAt( new THREE.Vector3(
+      // Make y position relative, so snowman starts standing upright, not leaning.
+      camera.position.x, snowmanGroup.position.y + camera.position.y, camera.position.z
+    ));
     // vrControls.update resets camera height to zero (with positional tracking offset)
     // so reapply the original height, otherwise player's view is at ground-level.
     camera.position.y += CAMERA_HEIGHT;
-    snowmanGroup.lookAt( new THREE.Vector3(
-      // Respond to changes in x and z only; if y included, snowman leans back to look up.
-      camera.position.x, snowmanGroup.position.y, camera.position.z
-    ));
-
     vrEffect.render(scene, camera);
   } else {
     var delta = clock.getDelta();
