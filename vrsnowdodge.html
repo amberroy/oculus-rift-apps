@@ -42,6 +42,7 @@ var clock = new THREE.Clock();
 
 var snowmanGroup = new THREE.Object3D();
 var snowball;
+var forceField;
 var CAMERA_HEIGHT = 140;
 
 Physijs.scripts.worker = "js/physijs_worker.js";
@@ -134,6 +135,7 @@ function createScene() {
 
   createGround();
   createSnowman();
+  createForceField();
 
   //var axisHelper = new THREE.AxisHelper(100);
   //scene.add( axisHelper );
@@ -301,6 +303,30 @@ function createSnowman() {
   scene.add( snowmanGroup );
 }
 
+function createForceField() {
+  // Force field around the camera into which snowballs collide.
+
+  var forceFieldMaterial = new Physijs.createMaterial(
+    new THREE.MeshBasicMaterial({
+      color: 0xFFFFFF,
+      opacity: 0.5,
+      transparent: true,
+      // Render inner surface of sphere, else we cannot see it when camera is inside.
+      side: THREE.BackSide
+    }),
+    0.8,  // high friction 
+    0.5   // medium bounce
+  );
+  forceField = new Physijs.SphereMesh(
+    new THREE.SphereGeometry(10, 32, 16),
+    forceFieldMaterial,
+    0  // zero mass means this object is stationary
+  );
+
+  forceField.visible = false;
+  scene.add( forceField );
+}
+
 function animate() {
   window.requestAnimationFrame(animate);
 
@@ -318,13 +344,36 @@ function animate() {
     // vrControls.update resets camera height to zero (with positional tracking offset)
     // so reapply the original height, otherwise player's view is at ground-level.
     camera.position.y += CAMERA_HEIGHT;
+    forceField.position.copy( camera.position );
+    checkCollision();
     vrEffect.render(scene, camera);
   } else {
     var delta = clock.getDelta();
     cameraControls.update(delta);
+    forceField.position.copy( camera.position );
+    checkCollision();
     renderer.render(scene, camera);
   }
 
+}
+
+function checkCollision() {
+  // Not sure why snowball goes through forcefield; bug in Physijs?
+  // For now, implement our own simple collision detection algorithm.
+
+  var snowballRadius = snowball.geometry.parameters.radius;
+  var forceFieldRadius = forceField.geometry.parameters.radius;
+  var distance = snowball.position.distanceTo( forceField.position ) - snowballRadius;
+  if ( distance <= forceFieldRadius ) {
+    if (snowball.visible) {
+      // collision effect
+      forceField.visible = true;
+      setTimeout( function() {
+        forceField.visible = false;
+      }, 250);
+      snowball.visible = false;
+    }
+  }
 }
 
 
