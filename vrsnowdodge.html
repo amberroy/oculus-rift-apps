@@ -73,7 +73,8 @@ var cameraControls, effectController;
 var clock = new THREE.Clock();
 
 var snowmanGroup = new THREE.Object3D();
-var snowball;
+var snowballPile = [];
+var snowballThrown = [];
 var forceField;
 var CAMERA_HEIGHT = 140;
 
@@ -81,6 +82,7 @@ Physijs.scripts.worker = "js/physijs_worker.js";
 // ammo: from https://github.com/kripken/ammo.js (2014-11-21)
 // path apparently relative to above directory
 Physijs.scripts.ammo = "ammo.js"; 
+// remember: need "mesh.__dirtyPosition = true;" if you change position/rotation
 
 // Chromium cannot play mp3 audio files so include wav too.
 var audioExt = (new Audio()).canPlayType('audio/mpeg') ? ".mp3" : ".wav";
@@ -186,7 +188,17 @@ function createScene() {
     snowmanGroup.position.z -= camera.position.z;
   }
 
-  createSnowball();
+  createSnowballPile();
+  var intervalID = setInterval( function() {
+    if (snowballPile.length === 0) {
+      for (var i = 0; i < snowballThrown.length; i++) {
+        var thrownBall = snowballThrown.pop();
+        scene.remove(thrownBall);
+      }
+      createSnowballPile();
+    }
+    throwSnowball();
+  }, 3000)
 }
 
 function createGround() {
@@ -206,37 +218,55 @@ function createGround() {
 
 }
 
-function createSnowball() {
-  var ballGeo = new THREE.SphereGeometry(2.5, 32, 16)
-  var ballMat = new Physijs.createMaterial(
-    new THREE.MeshLambertMaterial( { color: 0xFFFFFF } ),
-    0.8,  // high friction 
-    0.5   // medium bounce
-  );
-  var ballMass = 1;
-  snowball = new Physijs.SphereMesh( ballGeo, ballMat, ballMass );
-  snowball.addEventListener( 'ready', function() {
-    // x-value will be opposite when throwing from right hand.
-    var force = new THREE.Vector3(-42, 150, 350);
+function createSnowballPile() {
 
-    // Rotate the force vector to have same rotation as snowman,
-    // so snowball is thrown in direction the snowman is looking.
-    var axisX = new THREE.Vector3(1, 0, 0);
-    var axisY = new THREE.Vector3(0, 1, 0);
-    var axisZ = new THREE.Vector3(0, 0, 1);
-    force.applyAxisAngle( axisX, snowmanGroup.rotation.x)
-    force.applyAxisAngle( axisY, snowmanGroup.rotation.y)
-    force.applyAxisAngle( axisZ, snowmanGroup.rotation.z)
+  var snowballRadius = 2.5; // WBN: randomly sized snowballs
 
-    snowball.applyCentralImpulse(force)
-  });
+  for (var i = 0; i < 10; i++) {
+    var ballGeo = new THREE.SphereGeometry(snowballRadius, 32, 16)
+    var ballMat = new Physijs.createMaterial(
+      new THREE.MeshLambertMaterial( { color: 0xFFFFFF } ),
+      0.8,  // high friction 
+      0.5   // medium bounce
+    );
+    var ballMass = 1;
+    var snowball = new Physijs.SphereMesh( ballGeo, ballMat, ballMass );
+    snowball.position.copy(snowmanGroup.position);
+    snowball.position.x += 53;
+    snowball.position.y += snowballRadius * 1.5;
+
+
+    scene.add(snowball);
+    snowballPile.push(snowball);
+  }
+}
+
+function throwSnowball() {  
+
+  var snowball = snowballPile.pop();
+  snowballThrown.push(snowball);
 
   snowball.position.copy(snowmanGroup.position);
   // WBN: Determine snowball position from arm position.
   // Not sure why I made the snowperson left-handed.
   snowball.position.x += 53;
   snowball.position.y += 115.5;
-  scene.add(snowball);
+  snowball.__dirtyPosition = true;
+
+  // x-value will be opposite when throwing from right hand.
+  var force = new THREE.Vector3(-42, 150, 350);
+
+  // Rotate the force vector to have same rotation as snowman,
+  // so snowball is thrown in direction the snowman is looking.
+  var axisX = new THREE.Vector3(1, 0, 0);
+  var axisY = new THREE.Vector3(0, 1, 0);
+  var axisZ = new THREE.Vector3(0, 0, 1);
+  force.applyAxisAngle( axisX, snowmanGroup.rotation.x)
+  force.applyAxisAngle( axisY, snowmanGroup.rotation.y)
+  force.applyAxisAngle( axisZ, snowmanGroup.rotation.z)
+
+  snowball.applyCentralImpulse(force)
+
 }
 
 
@@ -368,11 +398,6 @@ function createForceField() {
 function animate() {
   window.requestAnimationFrame(animate);
 
-  if (snowball.position.z - snowmanGroup.position.z > 950) {
-    // TODO: Use array of snowballs instead of overwriting same variable.
-    createSnowball();
-  }
-
   if (vrEnabled) {
     vrControls.update();
     snowmanGroup.lookAt( new THREE.Vector3(
@@ -383,19 +408,19 @@ function animate() {
     // so reapply the original height, otherwise player's view is at ground-level.
     camera.position.y += CAMERA_HEIGHT;
     forceField.position.copy( camera.position );
-    checkCollision();
+    checkCollisions();
     vrEffect.render(scene, camera);
   } else {
     var delta = clock.getDelta();
     cameraControls.update(delta);
     forceField.position.copy( camera.position );
-    checkCollision();
+    checkCollisions();
     renderer.render(scene, camera);
   }
 
 }
 
-function checkCollision() {
+function checkCollisions() {
   // Not sure why snowball goes through forcefield; bug in Physijs?
   // For now, implement our own simple collision detection algorithm.
   // Initially just checked if ( distance <= forceFieldRadius ) but then 
@@ -403,18 +428,30 @@ function checkCollision() {
   // also check if snowball is in the area under the forcefield sphere.
   // WBN: Use cylinder instead of sphere, or group the two shapes together.
 
-  var snowballRadius = snowball.geometry.parameters.radius;
-  var forceFieldRadius = forceField.geometry.parameters.radius;
+  for (var i = 0; i < snowballThrown.length; i++) {
+    var snowball = snowballThrown[i];
 
-  var snowballPositionXZ = snowball.position.clone();
-  var forceFieldPositionXZ = forceField.position.clone();
-  snowballPositionXZ.y = forceFieldPositionXZ.y = 0;
+    if (!snowball.visible) {
+      // thrown snowballs either disappear on impact or fall off the world
+      continue;
+    }
 
-  var distanceXZ = snowballPositionXZ.distanceTo( forceFieldPositionXZ ) - snowballRadius;
-  var snowballTop = snowball.position.y + snowballRadius;
-  var forceFieldTop = forceField.position.y + forceFieldRadius;
-  if ( distanceXZ <= forceFieldRadius && snowballTop <= forceFieldTop ) {
-    if (snowball.visible) {
+    if (snowball.position.y < 0) {
+      // snowball fell off edge of the world
+      snowball.visible = false;
+    }
+
+    var snowballRadius = snowball.geometry.parameters.radius;
+    var forceFieldRadius = forceField.geometry.parameters.radius;
+
+    var snowballPositionXZ = snowball.position.clone();
+    var forceFieldPositionXZ = forceField.position.clone();
+    snowballPositionXZ.y = forceFieldPositionXZ.y = 0;
+
+    var distanceXZ = snowballPositionXZ.distanceTo( forceFieldPositionXZ ) - snowballRadius;
+    var snowballTop = snowball.position.y + snowballRadius;
+    var forceFieldTop = forceField.position.y + forceFieldRadius;
+    if ( distanceXZ <= forceFieldRadius && snowballTop <= forceFieldTop ) {
       // collision effect
       soundSnowballHit.play();
       forceField.visible = true;
