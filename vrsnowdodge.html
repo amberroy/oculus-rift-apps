@@ -15,6 +15,32 @@
     <title>VR Snow Dodge - Oculus Rift Web-VR Game</title>
     <meta charset="utf-8">
     <style>
+      /* button adapted from http://threejs.org/examples/#webgl_effects_vr  */
+      body {
+        font-family: Arial;
+        background-color: #A0A0A0;
+        margin: 0px;
+        overflow: hidden;
+      }
+
+      .button {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        padding: 8px;
+        color: #FFF;
+        background-color: #555;
+      }
+
+      .button:hover {
+        cursor: pointer;
+        background-color: rgb(18, 36, 70);
+      }
+
+      .button.error {
+        pointer-events: none;
+        background-color: red;
+      }
     </style>
     <!-- https://cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js -->
     <script src="js/three.min.js"></script>
@@ -33,10 +59,13 @@
 </head>
 
 <body>
+  <div class="button">Loading...</div>
   <div id="container"></div>
 </body>
 
 <script>
+
+var fullScreenButton = document.querySelector( '.button' );
 
 var vrControls, vrEffect, vrEnabled;
 var renderer, scene, camera;
@@ -88,6 +117,9 @@ function init() {
 
     vrControls = new THREE.VRControls(camera);
     vrEffect = new THREE.VREffect(renderer);
+    fullScreenButton.onclick = function() {
+      vrEffect.setFullScreen( true );
+    };
 
     // Rift SDK returns position in meters, treat scene units as centimeters.
     vrControls.scale = 100;
@@ -400,9 +432,12 @@ function main() {
   if (navigator.getVRDevices) {
     vrEnabled = true;
     console.log("VR-enabled browser detected");
+    fullScreenButton.innerHTML = "Enter VR Mode";
   } else {
     vrEnabled = false;
     console.log("Browser is not VR-enabled");
+    fullScreenButton.innerHTML = "Browser is not VR-enabled";
+    fullScreenButton.classList.add('error');
   }
 
   init();
