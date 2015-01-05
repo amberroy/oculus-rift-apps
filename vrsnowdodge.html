@@ -366,11 +366,22 @@ function animate() {
 function checkCollision() {
   // Not sure why snowball goes through forcefield; bug in Physijs?
   // For now, implement our own simple collision detection algorithm.
+  // Initially just checked if ( distance <= forceFieldRadius ) but then 
+  // a snowball just below the players head would not "hit" them. So now
+  // also check if snowball is in the area under the forcefield sphere.
+  // WBN: Use cylinder instead of sphere, or group the two shapes together.
 
   var snowballRadius = snowball.geometry.parameters.radius;
   var forceFieldRadius = forceField.geometry.parameters.radius;
-  var distance = snowball.position.distanceTo( forceField.position ) - snowballRadius;
-  if ( distance <= forceFieldRadius ) {
+
+  var snowballPositionXZ = snowball.position.clone();
+  var forceFieldPositionXZ = forceField.position.clone();
+  snowballPositionXZ.y = forceFieldPositionXZ.y = 0;
+
+  var distanceXZ = snowballPositionXZ.distanceTo( forceFieldPositionXZ ) - snowballRadius;
+  var snowballTop = snowball.position.y + snowballRadius;
+  var forceFieldTop = forceField.position.y + forceFieldRadius;
+  if ( distanceXZ <= forceFieldRadius && snowballTop <= forceFieldTop ) {
     if (snowball.visible) {
       // collision effect
       soundSnowballHit.play();
