@@ -1,0 +1,491 @@
+<!--
+  VR Snow Dodge - Oculus Rift Web-VR game
+  http://VRsnowdodge.com
+
+  Copyright (c) 2014 Amber Roy and released under the MIT license:
+  http://opensource.org/licenses/MIT
+  Created on: December 31, 2014
+
+  Sound effects:
+  snow-on-cement - https://www.freesound.org/people/Julien%20Matthey/sounds/167080/
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>VR Snow Dodge - Oculus Rift Web-VR Game</title>
+    <meta charset="utf-8">
+    <style>
+      /* button adapted from http://threejs.org/examples/#webgl_effects_vr  */
+      body {
+        font-family: Arial;
+        background-color: #A0A0A0;
+        margin: 0px;
+        overflow: hidden;
+      }
+
+      .button {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        padding: 8px;
+        color: #FFF;
+        background-color: #555;
+      }
+
+      .button:hover {
+        cursor: pointer;
+        background-color: rgb(18, 36, 70);
+      }
+
+      .button.error {
+        pointer-events: none;
+        background-color: red;
+      }
+    </style>
+    <!-- https://cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js -->
+    <script src="js/three.min.js"></script>
+
+    <!-- from threejs > examples > js > controls -->
+    <script src="js/OrbitControls.js"></script>
+
+    <!-- from threejs > examples > js > controls (dev branch 2014-11-29) -->
+    <script src="js/VRControls.js"></script>
+    <!-- from threejs > examples > js > effects (dev branch 2014-11-20) -->
+    <script src="js/VREffect.js"></script>
+
+    <!-- from https://github.com/chandlerprall/Physijs (2014-11-11) -->
+    <script src="js/physi.js"></script>
+
+</head>
+
+<body>
+  <div class="button">Loading...</div>
+  <div id="container"></div>
+</body>
+
+<script>
+
+var fullScreenButton = document.querySelector( '.button' );
+
+var vrControls, vrEffect, vrEnabled;
+var renderer, scene, camera;
+var cameraControls, effectController;
+var clock = new THREE.Clock();
+
+var snowmanGroup = new THREE.Object3D();
+var snowballPile = [];
+var snowballThrown = [];
+var forceField;
+var CAMERA_HEIGHT = 140;
+
+Physijs.scripts.worker = "js/physijs_worker.js";
+// ammo: from https://github.com/kripken/ammo.js (2014-11-21)
+// path apparently relative to above directory
+Physijs.scripts.ammo = "ammo.js"; 
+// remember: need "mesh.__dirtyPosition = true;" if you change position/rotation
+
+// Chromium cannot play mp3 audio files so include wav too.
+var audioExt = (new Audio()).canPlayType('audio/mpeg') ? ".mp3" : ".wav";
+var soundSnowballHit = new Audio("snow-on-cement"+audioExt);
+
+function init() {
+  // for example see: http://threejs.org/examples/#webgl_effects_vr
+
+  var canvasWidth = window.innerWidth;
+  var canvasHeight = window.innerHeight;
+  var canvasRatio = canvasWidth / canvasHeight;
+
+  // renderer
+  renderer = new THREE.WebGLRenderer( { antialias: true } );
+  renderer.gammaInput = true;
+  renderer.gammaOutput = true;
+  renderer.setSize(canvasWidth, canvasHeight);
+  // color from http://rgb.to/color/17004/sky-blue
+  renderer.setClearColor( 0x0038bb, 1.0 );
+
+  // camera
+  camera = new THREE.PerspectiveCamera( 30, canvasRatio, 1, 10000 );
+  camera.position.set(0, CAMERA_HEIGHT, 450); // 15 ft ~ 450 cm back
+
+  onResize = function() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  };
+  window.addEventListener('resize', onResize, false);
+
+  // controls
+  if (vrEnabled) {
+
+    vrControls = new THREE.VRControls(camera);
+    vrEffect = new THREE.VREffect(renderer);
+    fullScreenButton.onclick = function() {
+      vrEffect.setFullScreen( true );
+    };
+
+    // Rift SDK returns position in meters, treat scene units as centimeters.
+    vrControls.scale = 100;
+
+    onKeyPress = function(event) {
+      // "f" enters VR fullscreen mode
+      if (String.fromCharCode(event.which) === 'f') {
+        vrEffect.setFullScreen(true); 
+      } 
+
+      // "z" key resets positional tracking camera
+      if (String.fromCharCode(event.which) === 'z') {
+        vrControls.zeroSensor();  
+      } 
+    };
+    window.addEventListener("keypress", onKeyPress);
+
+  } else {
+    cameraControls = new THREE.OrbitControls(camera, renderer.domElement);
+    cameraControls.target.set(0, 43, -8);
+  }
+
+  // add to DOM
+  var container = document.getElementById('container');
+  container.appendChild( renderer.domElement );
+}
+
+
+function createScene() {
+
+  // configure physics simulation, see https://github.com/chandlerprall/Physijs/wiki
+  scene = new Physijs.Scene();
+  scene.setGravity( new THREE.Vector3(0, -200, 0));  // default is -10
+  scene.addEventListener("update", function() {
+    // physics simulation runs in different thread; wait until done before calling again
+    scene.simulate();
+  });
+
+  // lights
+  var ambientLight = new THREE.AmbientLight( 0x222222 );
+
+  var light = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
+  light.position.set( 200, 400, 500 );
+
+  var light2 = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
+  light2.position.set( -500, 250, -200 );
+
+  scene.add( ambientLight );
+  scene.add( light );
+  scene.add( light2 );
+
+  createGround();
+  createSnowman();
+  createForceField();
+
+  //var axisHelper = new THREE.AxisHelper(100);
+  //scene.add( axisHelper );
+
+  if (vrEnabled) {
+    // Move snowman away from camera, instead of moving camera away from snowman.
+    // Otherwise, camera ends up at origin position (0, 0, 0) underneath snowman,
+    // since vrControls resets camera position to zero before applying data from
+    // Oculus Rift positional tracking sensor.
+    snowmanGroup.position.z -= camera.position.z;
+  }
+
+  createSnowballPile();
+  var intervalID = setInterval( function() {
+    if (snowballPile.length === 0) {
+      for (var i = 0; i < snowballThrown.length; i++) {
+        var thrownBall = snowballThrown.pop();
+        scene.remove(thrownBall);
+      }
+      createSnowballPile();
+    }
+    throwSnowball();
+  }, 3000)
+}
+
+function createGround() {
+
+  var groundMaterial = new Physijs.createMaterial(
+    new THREE.MeshBasicMaterial( { color: 0xDDDDDD } ),
+    0.8,  // high friction 
+    0.5   // medium bounce
+  );
+  var ground = new Physijs.BoxMesh(
+    new THREE.BoxGeometry(1500, 1, 1500),
+    groundMaterial,
+    0  // zero mass means this object is stationary
+  );
+  ground.receiveShadow = true;
+  scene.add( ground );
+
+}
+
+function createSnowballPile() {
+
+  var snowballRadius = 2.5; // WBN: randomly sized snowballs
+
+  for (var i = 0; i < 10; i++) {
+    var ballGeo = new THREE.SphereGeometry(snowballRadius, 32, 16)
+    var ballMat = new Physijs.createMaterial(
+      new THREE.MeshLambertMaterial( { color: 0xFFFFFF } ),
+      0.8,  // high friction 
+      0.5   // medium bounce
+    );
+    var ballMass = 1;
+    var snowball = new Physijs.SphereMesh( ballGeo, ballMat, ballMass );
+    snowball.position.copy(snowmanGroup.position);
+    snowball.position.x += 53;
+    snowball.position.y += snowballRadius * 1.5;
+
+
+    scene.add(snowball);
+    snowballPile.push(snowball);
+  }
+}
+
+function throwSnowball() {  
+
+  var snowball = snowballPile.pop();
+  snowballThrown.push(snowball);
+
+  snowball.position.copy(snowmanGroup.position);
+  // WBN: Determine snowball position from arm position.
+  // Not sure why I made the snowperson left-handed.
+  snowball.position.x += 53;
+  snowball.position.y += 115.5;
+  snowball.__dirtyPosition = true;
+
+  // x-value will be opposite when throwing from right hand.
+  var force = new THREE.Vector3(-42, 150, 350);
+
+  // Rotate the force vector to have same rotation as snowman,
+  // so snowball is thrown in direction the snowman is looking.
+  var axisX = new THREE.Vector3(1, 0, 0);
+  var axisY = new THREE.Vector3(0, 1, 0);
+  var axisZ = new THREE.Vector3(0, 0, 1);
+  force.applyAxisAngle( axisX, snowmanGroup.rotation.x)
+  force.applyAxisAngle( axisY, snowmanGroup.rotation.y)
+  force.applyAxisAngle( axisZ, snowmanGroup.rotation.z)
+
+  snowball.applyCentralImpulse(force)
+
+}
+
+
+function createSnowman() {
+  // http://www.theblaze.com/stories/2014/03/04/meet-the-granddaddy-of-all-snowmen-that-has-whole-trees-for-arms/
+
+  // snowman body
+  var snowMaterial = new THREE.MeshLambertMaterial( { color: 0xFFFFFF } );
+  var bottomGeo = new THREE.SphereGeometry( 20, 32, 16 );
+  var middleGeo = new THREE.SphereGeometry( 15, 32, 16 );
+  var topGeo = new THREE.SphereGeometry( 10, 32, 16 );
+
+  var bodyBottom = new THREE.Mesh( bottomGeo, snowMaterial);
+  var bodyMiddle = new THREE.Mesh( middleGeo, snowMaterial );
+  var bodyTop = new THREE.Mesh( topGeo, snowMaterial );
+
+  bodyBottom.position.y = 20;
+  bodyMiddle.position.y = 50;
+  bodyTop.position.y = 70;
+
+  snowmanGroup.add( bodyBottom );
+  snowmanGroup.add( bodyMiddle );
+  snowmanGroup.add( bodyTop );
+
+  // snowman arms
+  // color from http://rgb.to/color/22869/wood-brown
+  var woodMaterial = new THREE.MeshLambertMaterial( { color: 0x562f0e } );
+
+  var armGeo = new THREE.CylinderGeometry( 2, 2, 30, 32 );
+
+  var armLeft = new THREE.Mesh( armGeo, woodMaterial );
+  var armRight = new THREE.Mesh( armGeo, woodMaterial );
+
+  armLeft.position.x = 15;
+  armLeft.position.y = 55;
+  armLeft.position.z = 0;
+  armLeft.rotation.x = 0 * (Math.PI / 180);
+  armLeft.rotation.y = 0 * (Math.PI / 180);
+  armLeft.rotation.z = 120 * (Math.PI / 180);
+
+  armRight.position.x = -15;
+  armRight.position.y = 55;
+  armRight.position.z = 0;
+  armRight.rotation.x = 0 * (Math.PI / 180);
+  armRight.rotation.y = 0 * (Math.PI / 180);
+  armRight.rotation.z = -120 * (Math.PI / 180);
+
+  snowmanGroup.add( armLeft );
+  snowmanGroup.add( armRight );
+
+  // snowman face
+  var coalMaterial = new THREE.MeshLambertMaterial( { color: 0x1E1E1E } );  // alt 0A0A0A
+  // WBN rounded corners: mrdoob.github.io/three.js/examples/webgl_geometry_subdivision.html
+  var boxGeo = new THREE.BoxGeometry( 2, 2, 1 );
+  var box = new THREE.Mesh ( boxGeo, coalMaterial );
+
+  // nose
+  var boxClone = box.clone();
+  boxClone.position.set(0, 72, 10);
+  snowmanGroup.add( boxClone );
+
+  // eyes
+  boxClone = box.clone();
+  boxClone.position.set(3, 75, 8.5);
+  boxClone.rotation.x -= 10;
+  snowmanGroup.add( boxClone );
+  boxClone = box.clone();
+  boxClone.position.set(-3, 75, 8.5);
+  boxClone.rotation.x -= 10;
+  snowmanGroup.add( boxClone );
+
+  // mouth
+  boxClone = box.clone();
+  boxClone.position.set(0, 68, 10);
+  snowmanGroup.add( boxClone );
+  boxClone = box.clone();
+  boxClone.position.set(2, 68.5, 10);
+  snowmanGroup.add( boxClone );
+  boxClone = box.clone();
+  boxClone.position.set(-2, 68.5, 10);
+  snowmanGroup.add( boxClone );
+
+  // buttons
+  boxClone = box.clone();
+  boxClone.position.set(0, 50, 15.25);
+  snowmanGroup.add( boxClone );
+
+  boxClone = box.clone();
+  boxClone.position.set(0, 55, 14.5);
+  boxClone.rotation.x += 3;
+  snowmanGroup.add( boxClone );
+
+  boxClone = box.clone();
+  boxClone.position.set(0, 45, 14.5);
+  boxClone.rotation.x -= 3;
+  snowmanGroup.add( boxClone );
+
+  // original height is 90 units tall, convert to 165 units/cm (~65 inches)
+  var scale = 165 / 90; 
+  snowmanGroup.scale.set(scale, scale, scale);
+
+  scene.add( snowmanGroup );
+}
+
+function createForceField() {
+  // Force field around the camera into which snowballs collide.
+
+  var forceFieldMaterial = new Physijs.createMaterial(
+    new THREE.MeshBasicMaterial({
+      color: 0xFFFFFF,
+      opacity: 0.5,
+      transparent: true,
+      // Render inner surface of sphere, else we cannot see it when camera is inside.
+      side: THREE.BackSide
+    }),
+    0.8,  // high friction 
+    0.5   // medium bounce
+  );
+  forceField = new Physijs.SphereMesh(
+    new THREE.SphereGeometry(10, 32, 16),
+    forceFieldMaterial,
+    0  // zero mass means this object is stationary
+  );
+
+  forceField.visible = false;
+  scene.add( forceField );
+}
+
+function animate() {
+  window.requestAnimationFrame(animate);
+
+  if (vrEnabled) {
+    vrControls.update();
+    snowmanGroup.lookAt( new THREE.Vector3(
+      // Make y position relative, so snowman starts standing upright, not leaning.
+      camera.position.x, snowmanGroup.position.y + camera.position.y, camera.position.z
+    ));
+    // vrControls.update resets camera height to zero (with positional tracking offset)
+    // so reapply the original height, otherwise player's view is at ground-level.
+    camera.position.y += CAMERA_HEIGHT;
+    forceField.position.copy( camera.position );
+    checkCollisions();
+    vrEffect.render(scene, camera);
+  } else {
+    var delta = clock.getDelta();
+    cameraControls.update(delta);
+    forceField.position.copy( camera.position );
+    checkCollisions();
+    renderer.render(scene, camera);
+  }
+
+}
+
+function checkCollisions() {
+  // Not sure why snowball goes through forcefield; bug in Physijs?
+  // For now, implement our own simple collision detection algorithm.
+  // Initially just checked if ( distance <= forceFieldRadius ) but then 
+  // a snowball just below the players head would not "hit" them. So now
+  // also check if snowball is in the area under the forcefield sphere.
+  // WBN: Use cylinder instead of sphere, or group the two shapes together.
+
+  for (var i = 0; i < snowballThrown.length; i++) {
+    var snowball = snowballThrown[i];
+
+    if (!snowball.visible) {
+      // thrown snowballs either disappear on impact or fall off the world
+      continue;
+    }
+
+    if (snowball.position.y < 0) {
+      // snowball fell off edge of the world
+      snowball.visible = false;
+    }
+
+    var snowballRadius = snowball.geometry.parameters.radius;
+    var forceFieldRadius = forceField.geometry.parameters.radius;
+
+    var snowballPositionXZ = snowball.position.clone();
+    var forceFieldPositionXZ = forceField.position.clone();
+    snowballPositionXZ.y = forceFieldPositionXZ.y = 0;
+
+    var distanceXZ = snowballPositionXZ.distanceTo( forceFieldPositionXZ ) - snowballRadius;
+    var snowballTop = snowball.position.y + snowballRadius;
+    var forceFieldTop = forceField.position.y + forceFieldRadius;
+    if ( distanceXZ <= forceFieldRadius && snowballTop <= forceFieldTop ) {
+      // collision effect
+      soundSnowballHit.play();
+      forceField.visible = true;
+      setTimeout( function() {
+        forceField.visible = false;
+      }, 250);
+      snowball.visible = false;
+    }
+  }
+}
+
+
+function main() {
+
+  if (navigator.getVRDevices) {
+    vrEnabled = true;
+    console.log("VR-enabled browser detected");
+    fullScreenButton.innerHTML = "Enter VR Mode";
+  } else {
+    vrEnabled = false;
+    console.log("Browser is not VR-enabled");
+    fullScreenButton.innerHTML = "Browser is not VR-enabled";
+    fullScreenButton.classList.add('error');
+  }
+
+  init();
+  createScene();
+
+  // Call RAF and scene.simulate to kick off rendering and physics simulation.
+  // RAF invoked again in animate callback, scene.simulate invoked in "update" callback.
+  window.requestAnimationFrame(animate);
+  scene.simulate();
+}
+window.addEventListener("load", main);
+
+</script>
+</html>
